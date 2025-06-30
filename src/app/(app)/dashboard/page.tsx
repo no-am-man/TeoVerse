@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { federationConfig } from '@/config';
 import { CreditCard, Landmark, PiggyBank, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
-import { getPassport, type Passport } from '@/services/passport-service';
+import { getPassport, type Passport, getFederationMemberCount } from '@/services/passport-service';
 import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -14,14 +14,19 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [passport, setPassport] = useState<Passport | null>(null);
+  const [memberCount, setMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
-      getPassport(user.uid).then(p => {
+      Promise.all([
+        getPassport(user.uid),
+        getFederationMemberCount(),
+      ]).then(([p, count]) => {
         setPassport(p);
+        setMemberCount(count);
       }).catch(error => {
-        console.error("Failed to fetch passport:", error);
+        console.error("Failed to fetch dashboard data:", error);
         toast({ title: "Error", description: "Could not fetch dashboard data.", variant: "destructive" });
       }).finally(() => {
         setLoading(false);
@@ -41,7 +46,7 @@ export default function DashboardPage() {
     { title: 'Passport Value', value: `${passportValueInBtc.toFixed(4)} BTC`, icon: CreditCard, description: `Based on your ${federationConfig.tokenSymbol} balance` },
     { title: 'BTC Balance', value: `${MOCK_BTC_BALANCE.toLocaleString()} BTC`, icon: Landmark, description: 'From your connected UniSat wallet (mock)' },
     { title: `${federationConfig.tokenSymbol} Balance`, value: `${teoBalance.toLocaleString()} ${federationConfig.tokenSymbol}`, icon: PiggyBank, description: 'Your federation currency' },
-    { title: 'Federation Members', value: '1', icon: Users, description: 'Total passports in this federation (mock)' },
+    { title: 'Federation Members', value: memberCount.toLocaleString(), icon: Users, description: 'Total passports in this federation' },
   ];
 
   if (loading) {

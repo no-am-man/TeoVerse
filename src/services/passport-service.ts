@@ -1,5 +1,5 @@
 import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, runTransaction, collection, getDocs } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 
 export interface PhysicalAsset {
@@ -82,4 +82,10 @@ export const mintTeos = async (userId: string, amount: number): Promise<void> =>
         const newBalance = currentBalance + amount;
         transaction.update(passportRef, { teoBalance: newBalance });
     });
+};
+
+export const getFederationMemberCount = async (): Promise<number> => {
+  const passportsRef = collection(db, passportsCollection);
+  const passportsSnap = await getDocs(passportsRef);
+  return passportsSnap.size;
 };
