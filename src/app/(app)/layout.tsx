@@ -17,8 +17,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
 import { UserNav } from '@/components/user-nav';
-import { LayoutDashboard, Wallet, Coins, Link2, Bot } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { LayoutDashboard, Wallet, Coins, Link2, Bot, BookText } from 'lucide-react';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -48,6 +47,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/dex', label: 'DEX', icon: Coins },
     { href: '/federations', label: 'Federations', icon: Link2 },
     { href: `/federation/${user.uid}`, label: 'Ambassador', icon: Bot },
+    { href: '/documentation', label: 'Documentation', icon: BookText },
   ];
 
   return (
