@@ -20,6 +20,12 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// Log the config to the console for debugging purposes, but only on the client.
+if (typeof window !== 'undefined') {
+  console.log("Firebase Config:", firebaseConfig);
+}
+
+
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
