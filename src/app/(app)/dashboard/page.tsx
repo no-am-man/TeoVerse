@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { federationConfig } from '@/config';
-import { CreditCard, Landmark, PiggyBank, Users } from 'lucide-react';
+import { CreditCard, Landmark, PiggyBank, Flag } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getPassport, type Passport, getFederationMemberCount } from '@/services/passport-service';
 import { getRecentActivity, type ActivityLog } from '@/services/activity-log-service';
@@ -51,7 +51,7 @@ export default function DashboardPage() {
     { title: 'Passport Value', value: `${passportValueInBtc.toFixed(4)} BTC`, icon: CreditCard, description: `Based on your ${federationConfig.tokenSymbol} balance` },
     { title: 'BTC Balance', value: `${MOCK_BTC_BALANCE.toLocaleString()} BTC`, icon: Landmark, description: 'From your connected UniSat wallet (mock)' },
     { title: `${federationConfig.tokenSymbol} Balance`, value: `${teoBalance.toLocaleString()} ${federationConfig.tokenSymbol}`, icon: PiggyBank, description: 'Your federation currency' },
-    { title: 'Federation Members', value: memberCount.toLocaleString(), icon: Users, description: 'Total passports in this federation' },
+    { title: 'Federation States', value: memberCount.toLocaleString(), icon: Flag, description: 'Total states in this federation' },
   ];
 
   if (loading) {
