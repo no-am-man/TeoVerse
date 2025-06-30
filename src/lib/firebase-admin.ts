@@ -8,10 +8,12 @@ import { getApps } from 'firebase-admin/app';
 // environment variable to point to your service account key file.
 
 if (!getApps().length) {
-    // Calling initializeApp() with no arguments relies on the SDK to
-    // auto-discover credentials and configuration from the environment.
-    // This is the most reliable method for managed environments like App Hosting.
-    admin.initializeApp();
+    // Explicitly using applicationDefault() can resolve authentication issues
+    // in some environments by forcing the SDK to use the service account
+    // credentials provided by the hosting environment (like App Hosting or Cloud Functions).
+    admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+    });
 }
 
 export const adminDb = admin.firestore();
