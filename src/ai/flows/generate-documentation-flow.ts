@@ -13,6 +13,11 @@ import { z } from 'genkit';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { geny } from './geny-flow';
+import { adminDb } from '@/lib/firebase-admin';
+import { federationConfig } from '@/config';
+import crypto from 'crypto';
+
+const DOCS_CACHE_COLLECTION = 'documentationCache';
 
 // Zod Schemas for input and output
 const GenerateDocumentationInputSchema = z.object({
@@ -21,10 +26,15 @@ const GenerateDocumentationInputSchema = z.object({
 export type GenerateDocumentationInput = z.infer<typeof GenerateDocumentationInputSchema>;
 
 const GenerateDocumentationOutputSchema = z.object({
+  topic: z.string().describe('The topic of the article.'),
   article: z.string().describe('The generated documentation article in Markdown format.'),
   imageUrl: z.string().describe('Data URI for a header image for the article.'),
 });
 export type GenerateDocumentationOutput = z.infer<typeof GenerateDocumentationOutputSchema>;
+
+const getCacheKey = (topic: string, version: string): string => {
+    return crypto.createHash('sha256').update(`${topic}-${version}`).digest('hex');
+};
 
 /**
  * A tool that allows the AI to read the content of project files.
@@ -69,8 +79,20 @@ const generateDocumentationFlow = ai.defineFlow(
     inputSchema: GenerateDocumentationInputSchema,
     outputSchema: GenerateDocumentationOutputSchema,
   },
-  async (input) => {
+  async (input, context) => {
     const { topic } = input;
+    const cacheKey = getCacheKey(topic, federationConfig.version);
+    const docRef = adminDb.collection(DOCS_CACHE_COLLECTION).doc(cacheKey);
+
+    // Check for a cached version first.
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+      console.log('Returning cached documentation.');
+      const data = docSnap.data();
+      if (data) {
+        return data as GenerateDocumentationOutput;
+      }
+    }
     
     console.log(`Generating new documentation for topic: "${topic}".`);
 
@@ -108,9 +130,11 @@ Once you have the context from the source code, write a markdown article explain
         throw new Error("The Geny service did not return an image data URI.");
     }
     
-    const result = { article, imageUrl: imageResponse.dataUri };
-
-    return result;
+    const docData: GenerateDocumentationOutput = { topic: input.topic, article, imageUrl: imageResponse.dataUri };
+    
+    await docRef.set(docData);
+    
+    return docData;
   }
 );
 

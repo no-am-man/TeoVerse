@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { generateDocumentation, type GenerateDocumentationOutput } from '@/ai/flows/generate-documentation-flow';
+import { getAllCachedDocumentation } from '@/services/documentation-service';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BookText, Sparkles } from 'lucide-react';
 import { federationConfig } from '@/config';
@@ -24,42 +25,70 @@ const documentationTopics = [
 export default function DocumentationPage() {
   const { toast } = useToast();
   const [selectedTopic, setSelectedTopic] = useState<string>('');
+  const [cachedArticles, setCachedArticles] = useState<Record<string, GenerateDocumentationOutput>>({});
   const [displayedArticle, setDisplayedArticle] = useState<GenerateDocumentationOutput | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoadingCache, setIsLoadingCache] = useState<boolean>(true);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+
+  useEffect(() => {
+    getAllCachedDocumentation(federationConfig.version)
+      .then(articles => {
+        const articlesMap: Record<string, GenerateDocumentationOutput> = {};
+        for (const article of articles) {
+            articlesMap[article.topic] = article;
+        }
+        setCachedArticles(articlesMap);
+      })
+      .catch(error => {
+        console.error("Failed to fetch cached docs:", error);
+        toast({
+          title: 'Error',
+          description: 'Could not fetch cached documentation.',
+          variant: 'destructive',
+        });
+      })
+      .finally(() => {
+        setIsLoadingCache(false);
+      });
+  }, [toast]);
 
   const handleTopicChange = (topic: string) => {
     setSelectedTopic(topic);
     setDisplayedArticle(null);
   };
 
-  const handleGenerate = async () => {
-    if (!selectedTopic) {
-      toast({
-        title: 'Select a Topic',
-        description: 'Please choose a topic to generate documentation for.',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const handleActionClick = async () => {
+    if (!selectedTopic) return;
 
-    setIsLoading(true);
-    setDisplayedArticle(null);
+    const isCached = !!cachedArticles[selectedTopic];
 
-    try {
-      const result = await generateDocumentation({ topic: selectedTopic });
-      setDisplayedArticle(result);
-    } catch (error) {
-      console.error("Documentation generation failed:", error);
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-      toast({
-        title: 'Generation Failed',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
+    if (isCached) {
+      setDisplayedArticle(cachedArticles[selectedTopic]);
+    } else {
+      setIsGenerating(true);
+      setDisplayedArticle(null);
+
+      try {
+        const result = await generateDocumentation({ topic: selectedTopic });
+        setDisplayedArticle(result);
+        setCachedArticles(prev => ({ ...prev, [selectedTopic]: result }));
+      } catch (error) {
+        console.error("Documentation generation failed:", error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        toast({
+          title: 'Generation Failed',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+      } finally {
+        setIsGenerating(false);
+      }
     }
   };
+  
+  const isCached = selectedTopic && !!cachedArticles[selectedTopic];
+  const buttonText = isCached ? 'Display' : 'Generate';
+  const buttonIcon = isCached ? <BookText className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />;
 
   const LoadingState = () => (
     <div className="space-y-6">
@@ -84,7 +113,7 @@ export default function DocumentationPage() {
     <div className="text-center text-muted-foreground py-12">
         <BookText className="mx-auto h-12 w-12" />
         <h3 className="mt-4 text-lg font-medium">Live Documentation (v{federationConfig.version})</h3>
-        <p className="mt-1">Select a topic and click Generate to create a new documentation article.</p>
+        <p className="mt-1">Select a topic to display or generate a new documentation article.</p>
     </div>
   );
 
@@ -107,8 +136,8 @@ export default function DocumentationPage() {
         <CardContent className="flex items-end gap-4">
           <div className="flex-grow">
             <Select onValueChange={handleTopicChange} value={selectedTopic}>
-              <SelectTrigger>
-                <SelectValue placeholder={"Select a topic..."} />
+              <SelectTrigger disabled={isLoadingCache}>
+                <SelectValue placeholder={isLoadingCache ? "Loading topics..." : "Select a topic..."} />
               </SelectTrigger>
               <SelectContent>
                 {documentationTopics.map((docTopic) => (
@@ -119,16 +148,16 @@ export default function DocumentationPage() {
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleGenerate} disabled={isLoading || !selectedTopic}>
-            <Sparkles className="mr-2 h-4 w-4" />
-            {isLoading ? 'Generating...' : 'Generate'}
+          <Button onClick={handleActionClick} disabled={isLoadingCache || isGenerating || !selectedTopic}>
+            {isGenerating ? <Sparkles className="mr-2 h-4 w-4 animate-spin" /> : buttonIcon}
+            {isGenerating ? 'Generating...' : buttonText}
           </Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="p-6 min-h-[300px]">
-            {isLoading ? <LoadingState /> : displayedArticle ? (
+            {isGenerating ? <LoadingState /> : displayedArticle ? (
                 <article className="prose dark:prose-invert max-w-none">
                     {displayedArticle.imageUrl && (
                         <Image
@@ -141,6 +170,7 @@ export default function DocumentationPage() {
                             unoptimized
                         />
                     )}
+                    <h1>{displayedArticle.topic}</h1>
                     <ReactMarkdown>{displayedArticle.article}</ReactMarkdown>
                 </article>
             ) : (
