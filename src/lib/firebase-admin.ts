@@ -1,5 +1,3 @@
-
-'use server';
 import * as admin from 'firebase-admin';
 
 // This guard prevents re-initialization in development environments (hot-reloading).
