@@ -87,10 +87,11 @@ export default function FederationsPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-headline font-bold">Linked Federations</h1>
-        <p className="text-muted-foreground">
+        <div className="text-muted-foreground">
           Connect to other federations to enable cross-federation interactions.
-          Your own federation version is <Badge variant="outline">v{federationConfig.version}</Badge>.
-        </p>
+          Your own federation version is{' '}
+          <Badge variant="outline">v{federationConfig.version}</Badge>.
+        </div>
       </div>
 
       <Card>
