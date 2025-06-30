@@ -47,7 +47,7 @@ const getFederationDataTool = ai.defineTool(
 );
 
 // Define the input and output schemas for the main flow.
-export const AmbassadorInputSchema = z.object({
+const AmbassadorInputSchema = z.object({
   userId: z.string().describe("The ID of the user whose federation is being queried."),
   question: z.string().describe("The visitor's question."),
   history: z.array(z.object({
@@ -57,7 +57,7 @@ export const AmbassadorInputSchema = z.object({
 });
 export type AmbassadorInput = z.infer<typeof AmbassadorInputSchema>;
 
-export const AmbassadorOutputSchema = z.object({
+const AmbassadorOutputSchema = z.object({
   answer: z.string().describe("The AI ambassador's answer."),
 });
 export type AmbassadorOutput = z.infer<typeof AmbassadorOutputSchema>;
