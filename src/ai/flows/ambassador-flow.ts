@@ -10,7 +10,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { federationConfig } from '@/config';
-import * as admin from 'firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
 import type { IpToken, PhysicalAsset } from '@/services/passport-service';
 
 // Schema for the public data we will expose via the tool.
@@ -41,10 +41,6 @@ const getFederationDataTool = ai.defineTool(
     outputSchema: PublicFederationDataSchema,
   },
   async ({ userId }) => {
-    if (!admin.apps.length) {
-      admin.initializeApp();
-    }
-    const adminDb = admin.firestore();
     const passportRef = adminDb.collection('passports').doc(userId);
     const passportSnap = await passportRef.get();
 

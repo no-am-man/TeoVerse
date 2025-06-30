@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow to generate technical documentation about the project.
@@ -13,7 +14,8 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { geny } from './geny-flow';
 import { createHash } from 'crypto';
-import * as admin from 'firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // Zod Schemas for input and output
 const GenerateDocumentationInputSchema = z.object({
@@ -71,17 +73,11 @@ const generateDocumentationFlow = ai.defineFlow(
     outputSchema: GenerateDocumentationOutputSchema,
   },
   async (input) => {
-    // 1. Initialize Firebase Admin SDK if not already initialized.
-    if (!admin.apps.length) {
-      admin.initializeApp();
-    }
-    const adminDb = admin.firestore();
-
-    // 2. Create a hash from the input topic to use as a cache key.
+    // 1. Create a hash from the input topic to use as a cache key.
     const hash = createHash('sha256').update(input.topic).digest('hex');
     const docRef = adminDb.collection('documentation_cache').doc(hash);
 
-    // 3. Check for a cached version of the documentation.
+    // 2. Check for a cached version of the documentation.
     const docSnap = await docRef.get();
     if (docSnap.exists()) {
       console.log(`Returning cached documentation for topic: "${input.topic}"`);
@@ -90,7 +86,7 @@ const generateDocumentationFlow = ai.defineFlow(
     
     console.log(`No cache hit for topic: "${input.topic}". Generating new documentation.`);
 
-    // 4. Generate article and image in parallel if not cached.
+    // 3. Generate article and image in parallel if not cached.
     const [llmResponse, imageResponse] = await Promise.all([
       ai.generate({
         prompt: `Write a technical documentation article about the following TeoVerse feature: "${input.topic}"`,
@@ -126,10 +122,10 @@ Once you have the context from the source code, write a markdown article explain
     
     const result = { article, imageUrl: imageResponse.url };
 
-    // 5. Cache the newly generated documentation before returning.
+    // 4. Cache the newly generated documentation before returning.
     await docRef.set({
       ...result,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     return result;

@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An image generation and caching service called Geny.
@@ -10,7 +11,8 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { createHash } from 'crypto';
-import * as admin from 'firebase-admin';
+import { adminDb, adminStorage } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const GenyInputSchema = z.object({
   prompt: z.string().describe('The text prompt to generate an image from.'),
@@ -48,12 +50,6 @@ const genyFlow = ai.defineFlow(
     outputSchema: GenyOutputSchema,
   },
   async (input) => {
-    // Initialize Firebase Admin SDK if not already initialized.
-    if (!admin.apps.length) {
-      admin.initializeApp();
-    }
-    const adminDb = admin.firestore();
-
     // 1. Hash the payload to create a unique key for caching.
     // The 'salt' property is intentionally excluded from the hash.
     const { salt, ...cacheablePayload } = input;
@@ -89,7 +85,6 @@ const genyFlow = ai.defineFlow(
     const dataUri = media.url;
     
     // 4. Upload to Firebase Storage using the Admin SDK
-    const adminStorage = admin.storage();
     const bucket = adminStorage.bucket();
     const filePath = `generated_images/${hash}.png`;
     const file = bucket.file(filePath);
@@ -114,7 +109,7 @@ const genyFlow = ai.defineFlow(
     // 5. Cache the public Storage URL in Firestore.
     await docRef.set({
       url: downloadURL,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     // 6. Return the URL to the new resource.
