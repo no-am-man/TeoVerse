@@ -32,7 +32,7 @@ export default function Home() {
           className="inline-flex items-center gap-2 hover:text-foreground transition-colors"
         >
           <Github className="h-4 w-4" />
-          <span>View the open-source project on GitHub</span>
+          <span>TeoVerse is an open-source project.</span>
         </a>
       </footer>
     </div>
