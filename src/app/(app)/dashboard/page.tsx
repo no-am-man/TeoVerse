@@ -65,7 +65,7 @@ export default function DashboardPage() {
           toast({ title: "Regenerating Flag...", description: "A new flag is being forged for the federation." });
         }
         
-        const prompt = `A futuristic, cyberpunk-style national flag for a digital sovereign state named '${federationConfig.federationName}'. The flag's design must be cryptographically derived from the following unique data hash, representing the state's identity: '${flagId}'. The design must be intricate, abstract, and incorporate the federation's theme colors - deep purple (#673AB7) and teal (#009688) - as glowing, neon-like elements against a dark, textured background.`;
+        const prompt = `A futuristic, cyberpunk-style national flag for a digital sovereign state named '${federationConfig.federationName}'. The flag's design must be cryptographically derived from the following unique data hash, representing the state's identity: '${flagId}'. The design must be intricate, abstract, and incorporate the federation's theme colors - vibrant orange (#f56502) and green (#15b56d) - as glowing, neon-like elements against a dark, textured background.`;
         
         const salt = forceRegenerate ? Math.random().toString() : digest;
 
