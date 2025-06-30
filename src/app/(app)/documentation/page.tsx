@@ -54,41 +54,40 @@ export default function DocumentationPage() {
 
   const handleTopicChange = (topic: string) => {
     setSelectedTopic(topic);
-    setDisplayedArticle(null);
+    // If the article is cached, display it immediately.
+    if (cachedArticles[topic]) {
+      setDisplayedArticle(cachedArticles[topic]);
+    } else {
+      // Otherwise, clear the display to show the initial state/prompt to generate.
+      setDisplayedArticle(null);
+    }
   };
 
-  const handleActionClick = async () => {
-    if (!selectedTopic) return;
+  const handleGenerateClick = async () => {
+    if (!selectedTopic || cachedArticles[selectedTopic]) return;
 
-    const isCached = !!cachedArticles[selectedTopic];
+    setIsGenerating(true);
+    setDisplayedArticle(null);
 
-    if (isCached) {
-      setDisplayedArticle(cachedArticles[selectedTopic]);
-    } else {
-      setIsGenerating(true);
-      setDisplayedArticle(null);
-
-      try {
-        const result = await generateDocumentation({ topic: selectedTopic });
-        setDisplayedArticle(result);
-        setCachedArticles(prev => ({ ...prev, [selectedTopic]: result }));
-      } catch (error) {
-        console.error("Documentation generation failed:", error);
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-        toast({
-          title: 'Generation Failed',
-          description: errorMessage,
-          variant: 'destructive',
-        });
-      } finally {
-        setIsGenerating(false);
-      }
+    try {
+      const result = await generateDocumentation({ topic: selectedTopic });
+      setDisplayedArticle(result);
+      // Add the newly generated article to the cache for the current session.
+      setCachedArticles(prev => ({ ...prev, [selectedTopic]: result }));
+    } catch (error) {
+      console.error("Documentation generation failed:", error);
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+      toast({
+        title: 'Generation Failed',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
     }
   };
   
   const isCached = selectedTopic && !!cachedArticles[selectedTopic];
-  const buttonText = isCached ? 'Display' : 'Generate';
-  const buttonIcon = isCached ? <BookText className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />;
 
   const LoadingState = () => (
     <div className="space-y-6">
@@ -113,7 +112,9 @@ export default function DocumentationPage() {
     <div className="text-center text-muted-foreground py-12">
         <BookText className="mx-auto h-12 w-12" />
         <h3 className="mt-4 text-lg font-medium">Live Documentation (v{federationConfig.version})</h3>
-        <p className="mt-1">Select a topic to display or generate a new documentation article.</p>
+        <p className="mt-1">
+            {selectedTopic ? `Documentation for "${selectedTopic}" has not been generated yet.` : "Select a topic to view its documentation."}
+        </p>
     </div>
   );
 
@@ -130,7 +131,7 @@ export default function DocumentationPage() {
         <CardHeader>
           <CardTitle>Documentation Generator</CardTitle>
           <CardDescription>
-            Select a feature to generate an article explaining its implementation.
+            Select a feature to view its documentation. If it hasn't been created yet, a button to generate it will appear.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex items-end gap-4">
@@ -148,10 +149,12 @@ export default function DocumentationPage() {
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleActionClick} disabled={isLoadingCache || isGenerating || !selectedTopic}>
-            {isGenerating ? <Sparkles className="mr-2 h-4 w-4 animate-spin" /> : buttonIcon}
-            {isGenerating ? 'Generating...' : buttonText}
-          </Button>
+          {!isCached && selectedTopic && (
+            <Button onClick={handleGenerateClick} disabled={isLoadingCache || isGenerating}>
+                {isGenerating ? <Sparkles className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                {isGenerating ? 'Generating...' : 'Generate'}
+            </Button>
+          )}
         </CardContent>
       </Card>
 
