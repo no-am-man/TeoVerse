@@ -4,12 +4,9 @@ import * as admin from 'firebase-admin';
 
 try {
   if (!admin.apps.length) {
-    // Initialize the app with Application Default Credentials
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-    });
+    // In a managed environment like App Hosting, initializeApp() with no arguments
+    // automatically discovers service credentials and project configuration.
+    admin.initializeApp();
   }
 } catch (error: any) {
   // If the app already exists, that's fine. Any other error is a critical failure.
@@ -21,5 +18,6 @@ try {
   }
 }
 
+// These lines will now throw if initialization still fails for a critical reason.
 export const adminStorage = admin.storage();
 export const adminRtdb = admin.database();
