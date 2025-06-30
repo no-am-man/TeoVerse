@@ -12,7 +12,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { createHash } from 'crypto';
 import { getCachedImage, cacheImage } from '@/services/geny-service';
-import { adminStorage } from '@/lib/firebase-admin';
+import { getAdminStorage } from '@/lib/firebase-admin';
 
 const GenyInputSchema = z.object({
   prompt: z.string().describe('The text prompt to generate an image from.'),
@@ -80,7 +80,7 @@ const genyFlow = ai.defineFlow(
     const dataUri = media.url;
     
     // 4. Upload to Firebase Storage using the Admin SDK
-    const bucket = adminStorage.bucket();
+    const bucket = getAdminStorage().bucket();
     const filePath = `generated_images/${hash}.png`;
     const file = bucket.file(filePath);
 

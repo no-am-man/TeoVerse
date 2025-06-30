@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { adminStorage, adminRtdb } from '@/lib/firebase-admin';
+import { getAdminStorage, getAdminRtdb } from '@/lib/firebase-admin';
 
 const GenerateFederationFlagInputSchema = z.object({
   prompt: z.string().describe('The detailed text prompt to generate the flag from.'),
@@ -51,7 +51,7 @@ const generateFederationFlagFlow = ai.defineFlow(
     const dataUri = media.url;
     
     // 2. Upload to Firebase Storage using Admin SDK
-    const bucket = adminStorage.bucket();
+    const bucket = getAdminStorage().bucket();
     const uniqueName = `flag-${Date.now()}`;
     const filePath = `federation_flags/${uniqueName}.png`;
     const file = bucket.file(filePath);
@@ -74,7 +74,7 @@ const generateFederationFlagFlow = ai.defineFlow(
     const downloadURL = file.publicUrl();
 
     // 4. Update the Realtime Database with the new flag URL using Admin SDK
-    await adminRtdb.ref('federation/flagUrl').set(downloadURL);
+    await getAdminRtdb().ref('federation/flagUrl').set(downloadURL);
     
     // 5. Return the URL. The client will use this for an immediate UI update.
     return { dataUri: downloadURL };
