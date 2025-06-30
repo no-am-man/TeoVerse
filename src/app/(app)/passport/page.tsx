@@ -371,14 +371,9 @@ export default function PassportPage() {
                       <TableBody>
                           {passport.ipTokens.map(token => (
                               <TableRow key={token.id}>
-                                  <TableCell className="font-medium">
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex items-center gap-2">
-                                            {getAssetIcon(token.name)}
-                                            <span>{token.name}</span>
-                                        </div>
-                                        <Progress value={33} className="h-2" />
-                                    </div>
+                                  <TableCell className="font-medium flex items-center gap-2">
+                                    {getAssetIcon(token.name)}
+                                    {token.name}
                                   </TableCell>
                                   <TableCell>{token.value}</TableCell>
                                   <TableCell className="text-right">
@@ -493,5 +488,3 @@ export default function PassportPage() {
     </>
   );
 }
-
-    
