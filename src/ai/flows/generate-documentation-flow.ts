@@ -13,11 +13,6 @@ import { z } from 'genkit';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { geny } from './geny-flow';
-import { adminDb } from '@/lib/firebase-admin';
-import { federationConfig } from '@/config';
-import crypto from 'crypto';
-
-const DOCS_CACHE_COLLECTION = 'documentationCache';
 
 // Zod Schemas for input and output
 const GenerateDocumentationInputSchema = z.object({
@@ -31,10 +26,6 @@ const GenerateDocumentationOutputSchema = z.object({
   imageUrl: z.string().describe('Data URI for a header image for the article.'),
 });
 export type GenerateDocumentationOutput = z.infer<typeof GenerateDocumentationOutputSchema>;
-
-const getCacheKey = (topic: string, version: string): string => {
-    return crypto.createHash('sha256').update(`${topic}-${version}`).digest('hex');
-};
 
 /**
  * A tool that allows the AI to read the content of project files.
@@ -71,7 +62,7 @@ const getFileContentTool = ai.defineTool(
 );
 
 /**
- * The main flow for generating documentation.
+ * The main flow for generating documentation. This flow is now stateless and does not cache.
  */
 const generateDocumentationFlow = ai.defineFlow(
   {
@@ -79,20 +70,8 @@ const generateDocumentationFlow = ai.defineFlow(
     inputSchema: GenerateDocumentationInputSchema,
     outputSchema: GenerateDocumentationOutputSchema,
   },
-  async (input, context) => {
+  async (input) => {
     const { topic } = input;
-    const cacheKey = getCacheKey(topic, federationConfig.version);
-    const docRef = adminDb.collection(DOCS_CACHE_COLLECTION).doc(cacheKey);
-
-    // Check for a cached version first.
-    const docSnap = await docRef.get();
-    if (docSnap.exists) {
-      console.log('Returning cached documentation.');
-      const data = docSnap.data();
-      if (data) {
-        return data as GenerateDocumentationOutput;
-      }
-    }
     
     console.log(`Generating new documentation for topic: "${topic}".`);
 
@@ -130,22 +109,18 @@ Once you have the context from the source code, write a markdown article explain
         throw new Error("The Geny service did not return an image data URI.");
     }
     
-    const docData: GenerateDocumentationOutput & { version: string } = { 
+    return {
       topic: input.topic, 
       article, 
       imageUrl: imageResponse.dataUri,
-      version: federationConfig.version,
     };
-    
-    await docRef.set(docData);
-    
-    return docData;
   }
 );
 
 
 /**
  * Main endpoint function to generate documentation.
+ * This is now a wrapper around the stateless flow. Caching is handled by a separate server action.
  * @param input The payload containing the documentation topic.
  * @returns The generated article in markdown format and an image data URI.
  */

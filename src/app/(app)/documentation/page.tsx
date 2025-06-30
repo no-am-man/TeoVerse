@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { generateDocumentation, type GenerateDocumentationOutput } from '@/ai/flows/generate-documentation-flow';
+import { type GenerateDocumentationOutput } from '@/ai/flows/generate-documentation-flow';
+import { generateAndCacheDocumentation } from './actions';
 import { getAllCachedDocumentation } from '@/services/documentation-service';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BookText, Sparkles } from 'lucide-react';
@@ -64,13 +65,13 @@ export default function DocumentationPage() {
   };
 
   const handleGenerateClick = async () => {
-    if (!selectedTopic || cachedArticles[selectedTopic]) return;
+    if (!selectedTopic || isGenerating || cachedArticles[selectedTopic]) return;
 
     setIsGenerating(true);
     setDisplayedArticle(null);
 
     try {
-      const result = await generateDocumentation({ topic: selectedTopic });
+      const result = await generateAndCacheDocumentation({ topic: selectedTopic });
       setDisplayedArticle(result);
       // Add the newly generated article to the cache for the current session.
       setCachedArticles(prev => ({ ...prev, [selectedTopic]: result }));
