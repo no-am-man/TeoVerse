@@ -11,14 +11,6 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getPassport } from '@/services/passport-service';
 import { federationConfig } from '@/config';
-import * as admin from 'firebase-admin';
-
-// Initialize Firebase Admin SDK directly in this flow.
-// This is a workaround for a suspected module loading issue in the environment
-// that causes initialization to fail when it's in a shared module.
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
 
 // Schema for the public data we will expose via the tool.
 const PublicFederationDataSchema = z.object({
