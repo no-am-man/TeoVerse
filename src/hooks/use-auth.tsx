@@ -35,11 +35,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       router.push("/dashboard");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error during login:", error);
       toast({
         title: "Login Failed",
-        description: "Could not sign in with Google. Please try again.",
+        description: error.message || "Could not sign in with Google. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -51,11 +51,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await signOut(auth);
       router.push("/");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error during logout:", error);
        toast({
         title: "Logout Failed",
-        description: "Could not sign out. Please try again.",
+        description: error.message || "Could not sign out. Please try again.",
         variant: "destructive",
       });
     }
