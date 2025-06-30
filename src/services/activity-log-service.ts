@@ -44,31 +44,38 @@ export const addActivityLog = async (userId: string, type: ActivityType, descrip
 
 /**
  * Fetches the most recent activity logs for a user.
+ * This function fetches all logs for a user and sorts/limits them in-code to avoid needing a composite index.
  * @param userId The ID of the user.
  * @param count The number of recent activities to fetch.
  * @returns A promise that resolves to an array of activity logs.
  */
 export const getRecentActivity = async (userId: string, count: number = 5): Promise<ActivityLog[]> => {
   const logsRef = collection(db, ACTIVITY_LOGS_COLLECTION);
+  // Query only by userId to avoid needing a composite index for sorting.
   const q = query(
     logsRef,
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-    limit(count)
+    where("userId", "==", userId)
   );
 
   const querySnapshot = await getDocs(q);
   const activities: ActivityLog[] = [];
   querySnapshot.forEach((doc) => {
     const data = doc.data();
-    activities.push({
-      id: doc.id,
-      userId: data.userId,
-      type: data.type,
-      description: data.description,
-      createdAt: data.createdAt,
-    });
+    // Ensure createdAt field exists before processing
+    if (data.createdAt) {
+      activities.push({
+        id: doc.id,
+        userId: data.userId,
+        type: data.type,
+        description: data.description,
+        createdAt: data.createdAt,
+      });
+    }
   });
 
-  return activities;
+  // Sort activities by date descending in the code.
+  activities.sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
+
+  // Return the specified number of recent activities.
+  return activities.slice(0, count);
 };
