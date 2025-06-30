@@ -21,8 +21,8 @@ export default function DashboardPage() {
   const [memberCount, setMemberCount] = useState(0);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [bioSignatureUrl, setBioSignatureUrl] = useState<string | null>(null);
-  const [isGeneratingSig, setIsGeneratingSig] = useState(false);
+  const [federationFlagUrl, setFederationFlagUrl] = useState<string | null>(null);
+  const [isGeneratingFlag, setIsGeneratingFlag] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -47,8 +47,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (passport) {
-      const generateSignature = async () => {
-        setIsGeneratingSig(true);
+      const generateFlag = async () => {
+        setIsGeneratingFlag(true);
         try {
           const createPassportDigest = (p: Passport): string => {
             const dataToHash = {
@@ -66,22 +66,22 @@ export default function DashboardPage() {
           };
 
           const passportDigest = createPassportDigest(passport);
-          const prompt = `Generate an abstract, futuristic, cyberpunk digital bio-signature. It's a visual hash of a digital identity. The identity data is: ${passportDigest}. The visual should be intricate, unique, and incorporate the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a light gray (#EEEEEE) or dark background. It should look like a complex, glowing emblem or a digital fingerprint.`;
+          const prompt = `Generate a futuristic, cyberpunk-style flag for a digital federation. The flag should visually represent a unique digital identity. The identity data used to generate the flag is: ${passportDigest}. The design should be intricate and unique, incorporating the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a dark background. It should look like a national flag for a digital sovereign state.`;
 
           const response = await geny({
             prompt: prompt,
             imageSize: { width: 400, height: 400 }
           });
 
-          setBioSignatureUrl(response.url);
+          setFederationFlagUrl(response.url);
         } catch (error) {
-          console.error("Failed to generate bio-signature:", error);
-          toast({ title: "Signature Error", description: "Could not generate your Bio-Signature.", variant: "destructive" });
+          console.error("Failed to generate federation flag:", error);
+          toast({ title: "Flag Error", description: "Could not generate your Federation Flag.", variant: "destructive" });
         } finally {
-          setIsGeneratingSig(false);
+          setIsGeneratingFlag(false);
         }
       };
-      generateSignature();
+      generateFlag();
     }
   }, [passport, toast]);
   
@@ -169,24 +169,24 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Bio-Signature</CardTitle>
-            <CardDescription>A unique visual hash of your passport, regenerated on any change.</CardDescription>
+            <CardTitle>Federation Flag</CardTitle>
+            <CardDescription>A unique flag for your federation, regenerated on any passport change.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center gap-4 pt-4">
-             {isGeneratingSig ? (
+             {isGeneratingFlag ? (
                 <Skeleton className="h-48 w-48 rounded-lg" />
-            ) : bioSignatureUrl ? (
+            ) : federationFlagUrl ? (
                 <Image
-                    src={bioSignatureUrl}
-                    alt="Your unique Bio-Signature"
+                    src={federationFlagUrl}
+                    alt="Your Federation Flag"
                     width={192}
                     height={192}
                     className="rounded-lg border-2 border-primary/50 shadow-lg"
-                    data-ai-hint="abstract cyberpunk"
+                    data-ai-hint="federation flag"
                 />
             ) : (
                 <div className="flex h-48 w-48 items-center justify-center rounded-lg border-2 border-dashed">
-                    <p className="text-center text-sm text-muted-foreground">Signature will be generated here.</p>
+                    <p className="text-center text-sm text-muted-foreground">Your flag will be generated here.</p>
                 </div>
             )}
             <p className="text-center text-sm text-muted-foreground">You have {totalAssets} tokenized assets.</p>
