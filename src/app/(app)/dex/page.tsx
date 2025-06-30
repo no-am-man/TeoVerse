@@ -1,25 +1,51 @@
+
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowDownUp, CheckCircle2 } from "lucide-react";
+import { ArrowDownUp, CheckCircle2, BrainCircuit, FileText } from "lucide-react";
 import { federationConfig } from "@/config";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, ReactNode } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { getPassport, type Passport } from "@/services/passport-service";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 const MOCK_RATE = 10000;
 const MOCK_BTC_BALANCE = 100;
 
 export default function DexPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  
   const [fromAmount, setFromAmount] = useState('0.01');
   const [toAmount, setToAmount] = useState((0.01 * MOCK_RATE).toString());
   const [isFromBtc, setIsFromBtc] = useState(true);
   const [isWalletConnected, setIsWalletConnected] = useState(false);
+  
+  const [passport, setPassport] = useState<Passport | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    if (user) {
+      setLoading(true);
+      getPassport(user.uid)
+        .then(setPassport)
+        .catch(() => {
+          toast({ title: "Error", description: "Could not fetch passport data.", variant: "destructive" });
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [user, toast]);
+  
   const fromCurrency = isFromBtc ? 'BTC' : federationConfig.tokenSymbol;
   const toCurrency = isFromBtc ? federationConfig.tokenSymbol : 'BTC';
 
@@ -76,6 +102,20 @@ export default function DexPage() {
         description: `Swapping ${fromAmount} ${fromCurrency} for ${toAmount} ${toCurrency}. This is a mock transaction.`,
     });
   };
+
+  const handleSellIp = (tokenName: string) => {
+    toast({
+      title: "Feature Coming Soon",
+      description: `Listing "${tokenName}" for sale is not yet implemented.`
+    });
+  };
+
+  const getAssetIcon = (type: string): ReactNode => {
+    switch (type.toLowerCase()) {
+        case 'teoverse concept': return <BrainCircuit className="h-4 w-4" />;
+        default: return <FileText className="h-4 w-4" />;
+    }
+  };
   
   const btcBalanceDisplay = (
       <div className="text-xs text-muted-foreground">
@@ -90,10 +130,9 @@ export default function DexPage() {
         <p className="text-muted-foreground">Trade assets within the {federationConfig.federationName} federation.</p>
       </div>
       <Tabs defaultValue="swap" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-md mx-auto">
+        <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
           <TabsTrigger value="swap">Swap Tokens</TabsTrigger>
-          <TabsTrigger value="passports" disabled>Trade Passports</TabsTrigger>
-          <TabsTrigger value="ip" disabled>Trade IP</TabsTrigger>
+          <TabsTrigger value="ip">Trade IP</TabsTrigger>
         </TabsList>
         <TabsContent value="swap">
           <Card className="w-full max-w-md mx-auto">
@@ -137,6 +176,56 @@ export default function DexPage() {
                  {isWalletConnected && <CheckCircle2 className="h-3 w-3 text-green-500" />}
                 Powered by UniSat Wallet ({isWalletConnected ? "Connected" : "Emulated"})
               </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="ip">
+          <Card className="w-full max-w-2xl mx-auto">
+            <CardHeader>
+              <CardTitle>IP Token Marketplace</CardTitle>
+              <CardDescription>List your tokenized intellectual property for sale or browse assets from other federation members.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : passport && passport.ipTokens.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Token</TableHead>
+                      <TableHead>Value (USD)</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {passport.ipTokens.map((token) => (
+                      <TableRow key={token.id}>
+                        <TableCell className="font-medium flex items-center gap-2">
+                          {getAssetIcon(token.name)}
+                          {token.name}
+                        </TableCell>
+                        <TableCell>{token.value}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="outline" size="sm" onClick={() => handleSellIp(token.name)}>
+                            Sell
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center text-muted-foreground border-2 border-dashed rounded-lg p-8">
+                  <p>You have no IP tokens to sell.</p>
+                  <Link href="/passport" className={cn(buttonVariants({ variant: "link" }), "mt-2")}>
+                     Mint your first IP token on the Passport page.
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
