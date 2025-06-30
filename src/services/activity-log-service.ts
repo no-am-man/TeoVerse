@@ -3,6 +3,7 @@ import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs } from 'firebase/firestore';
 
 export type ActivityType = 
+  | 'MINT_PASSPORT'
   | 'MINT_TEO'
   | 'ADD_PHYSICAL_ASSET'
   | 'REMOVE_PHYSICAL_ASSET'

@@ -60,6 +60,8 @@ export const createPassport = async (user: User, federationURL: string): Promise
     teoBalance: 0,
   };
   await setDoc(passportRef, passportData);
+
+  await addActivityLog(user.uid, 'MINT_PASSPORT', 'Passport minted.');
   
   const newPassport = await getPassport(user.uid);
   if (!newPassport) {
