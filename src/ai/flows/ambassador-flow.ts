@@ -12,13 +12,6 @@ import { z } from 'zod';
 import { federationConfig } from '@/config';
 import * as admin from 'firebase-admin';
 
-// Initialize Firebase Admin SDK if not already initialized.
-// This is necessary for server-side flows to securely access Firestore.
-if (!admin.apps.length) {
-  // In a managed environment, this call should automatically discover credentials.
-  admin.initializeApp();
-}
-const adminDb = admin.firestore();
 
 // Schema for the public data we will expose via the tool.
 const PublicFederationDataSchema = z.object({
@@ -42,6 +35,13 @@ const getFederationDataTool = ai.defineTool(
     outputSchema: PublicFederationDataSchema,
   },
   async ({ userId }) => {
+    // Initialize Firebase Admin SDK if not already initialized.
+    // This is necessary for server-side flows to securely access Firestore.
+    if (!admin.apps.length) {
+      admin.initializeApp();
+    }
+    const adminDb = admin.firestore();
+
     // Use the Firebase Admin SDK to fetch passport data directly.
     const passportRef = adminDb.collection('passports').doc(userId);
     const passportSnap = await passportRef.get();

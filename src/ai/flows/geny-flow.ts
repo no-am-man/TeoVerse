@@ -9,18 +9,10 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { createHash } from 'crypto';
 import { getCachedImage, cacheImage } from '@/services/geny-service';
 import * as admin from 'firebase-admin';
-
-// Initialize Firebase Admin SDK directly in this flow.
-// This is a workaround for a suspected module loading issue in the environment
-// that causes initialization to fail when it's in a shared module.
-if (!admin.apps.length) {
-  // In a managed environment, this call should automatically discover credentials.
-  admin.initializeApp();
-}
 
 const GenyInputSchema = z.object({
   prompt: z.string().describe('The text prompt to generate an image from.'),
@@ -58,6 +50,12 @@ const genyFlow = ai.defineFlow(
     outputSchema: GenyOutputSchema,
   },
   async (input) => {
+    // Initialize Firebase Admin SDK if not already initialized. This is deferred
+    // until the flow is running to avoid module-level side effects.
+    if (!admin.apps.length) {
+      admin.initializeApp();
+    }
+
     // 1. Hash the payload to create a unique key for caching.
     const payloadString = JSON.stringify(input);
     const hash = createHash('sha256').update(payloadString).digest('hex');
