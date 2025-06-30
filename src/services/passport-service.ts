@@ -1,5 +1,5 @@
 import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp, runTransaction, collection, getDocs, deleteDoc, writeBatch, query } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, runTransaction, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { addActivityLog } from './activity-log-service';
 import { federationConfig } from '@/config';
@@ -91,22 +91,12 @@ export const mintTeos = async (userId: string, amount: number): Promise<void> =>
 };
 
 export const deletePassport = async (userId: string): Promise<void> => {
-    const passportRef = doc(db, passportsCollection, userId);
-    
-    // Delete activity logs subcollection
-    const activityLogsCollectionRef = collection(db, 'passports', userId, 'activity_logs');
-    const activityLogsQuery = query(activityLogsCollectionRef);
-    const activityLogsSnap = await getDocs(activityLogsQuery);
-    
-    const batch = writeBatch(db);
-    activityLogsSnap.forEach((doc) => {
-        batch.delete(doc.ref);
-    });
-    
-    // Delete the main passport document
-    batch.delete(passportRef);
+    // First, log the deletion event. This is now possible because logs are in a separate collection.
+    await addActivityLog(userId, 'DELETE_PASSPORT', 'Passport deleted.');
 
-    await batch.commit();
+    // Then, delete the passport document itself.
+    const passportRef = doc(db, passportsCollection, userId);
+    await deleteDoc(passportRef);
 };
 
 export const getFederationMemberCount = async (): Promise<number> => {

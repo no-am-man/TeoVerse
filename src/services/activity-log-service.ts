@@ -1,6 +1,6 @@
 'use server';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 
 export type ActivityType = 
   | 'MINT_PASSPORT'
@@ -8,7 +8,8 @@ export type ActivityType =
   | 'ADD_PHYSICAL_ASSET'
   | 'REMOVE_PHYSICAL_ASSET'
   | 'MINT_IP_TOKEN'
-  | 'BURN_IP_TOKEN';
+  | 'BURN_IP_TOKEN'
+  | 'DELETE_PASSPORT';
 
 export interface ActivityLog {
   id: string;
@@ -18,16 +19,19 @@ export interface ActivityLog {
   createdAt: any; // Firestore Timestamp
 }
 
+const ACTIVITY_LOGS_COLLECTION = 'activity_logs';
+
 /**
- * Adds a new activity log entry for a user as a subcollection of their passport.
+ * Adds a new activity log entry for a user.
  * @param userId The ID of the user performing the action.
  * @param type The type of activity.
  * @param description A description of the activity.
  */
 export const addActivityLog = async (userId: string, type: ActivityType, description: string): Promise<void> => {
   try {
-    const logsRef = collection(db, 'passports', userId, 'activity_logs');
+    const logsRef = collection(db, ACTIVITY_LOGS_COLLECTION);
     await addDoc(logsRef, {
+      userId,
       type,
       description,
       createdAt: serverTimestamp(),
@@ -39,15 +43,16 @@ export const addActivityLog = async (userId: string, type: ActivityType, descrip
 };
 
 /**
- * Fetches the most recent activity logs for a user from their passport subcollection.
+ * Fetches the most recent activity logs for a user.
  * @param userId The ID of the user.
  * @param count The number of recent activities to fetch.
  * @returns A promise that resolves to an array of activity logs.
  */
 export const getRecentActivity = async (userId: string, count: number = 5): Promise<ActivityLog[]> => {
-  const logsRef = collection(db, 'passports', userId, 'activity_logs');
+  const logsRef = collection(db, ACTIVITY_LOGS_COLLECTION);
   const q = query(
     logsRef,
+    where("userId", "==", userId),
     orderBy("createdAt", "desc"),
     limit(count)
   );
@@ -58,7 +63,7 @@ export const getRecentActivity = async (userId: string, count: number = 5): Prom
     const data = doc.data();
     activities.push({
       id: doc.id,
-      userId: userId, // The user ID is part of the document path
+      userId: data.userId,
       type: data.type,
       description: data.description,
       createdAt: data.createdAt,
