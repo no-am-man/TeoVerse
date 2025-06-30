@@ -13,8 +13,9 @@ import { z } from 'genkit';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { geny } from './geny-flow';
-import { getDocumentation, setDocumentation } from '@/services/documentation-service';
 import { federationConfig } from '@/config';
+import { adminDb } from '@/lib/firebase-admin';
+import { createHash } from 'crypto';
 
 // Zod Schemas for input and output
 const GenerateDocumentationInputSchema = z.object({
@@ -27,6 +28,12 @@ const GenerateDocumentationOutputSchema = z.object({
   imageUrl: z.string().describe('Data URI for a header image for the article.'),
 });
 export type GenerateDocumentationOutput = z.infer<typeof GenerateDocumentationOutputSchema>;
+
+const DOCS_CACHE_COLLECTION = 'documentationCache';
+
+function getCacheKey(topic: string, version: string): string {
+    return createHash('sha256').update(`${topic}:${version}`).digest('hex');
+}
 
 /**
  * A tool that allows the AI to read the content of project files.
@@ -74,14 +81,22 @@ const generateDocumentationFlow = ai.defineFlow(
   async (input) => {
     const { topic } = input;
     const { version } = federationConfig;
+    const cacheKey = getCacheKey(topic, version);
+    const docRef = adminDb.collection(DOCS_CACHE_COLLECTION).doc(cacheKey);
 
     console.log(`Request for documentation topic: "${topic}" (v${version}).`);
 
     // Check for a cached version first.
-    const cachedDoc = await getDocumentation(topic, version);
-    if (cachedDoc) {
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
       console.log('Returning cached documentation.');
-      return cachedDoc;
+      const data = docSnap.data();
+      if (data) {
+        return {
+            article: data.article,
+            imageUrl: data.imageUrl,
+        };
+      }
     }
     
     console.log(`Generating new documentation for topic: "${topic}".`);
@@ -123,7 +138,7 @@ Once you have the context from the source code, write a markdown article explain
     const result = { article, imageUrl: imageResponse.dataUri };
 
     // Cache the newly generated result.
-    await setDocumentation(topic, version, result);
+    await docRef.set({ ...result, topic, version });
     console.log(`Cached new documentation for topic: "${topic}".`);
 
     return result;
