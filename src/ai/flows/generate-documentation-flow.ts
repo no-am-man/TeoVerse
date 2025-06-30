@@ -130,7 +130,12 @@ Once you have the context from the source code, write a markdown article explain
         throw new Error("The Geny service did not return an image data URI.");
     }
     
-    const docData: GenerateDocumentationOutput = { topic: input.topic, article, imageUrl: imageResponse.dataUri };
+    const docData: GenerateDocumentationOutput & { version: string } = { 
+      topic: input.topic, 
+      article, 
+      imageUrl: imageResponse.dataUri,
+      version: federationConfig.version,
+    };
     
     await docRef.set(docData);
     
