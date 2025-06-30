@@ -13,9 +13,6 @@ import { z } from 'genkit';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { geny } from './geny-flow';
-import { createHash } from 'crypto';
-import { adminDb } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
 
 // Zod Schemas for input and output
 const GenerateDocumentationInputSchema = z.object({
@@ -25,7 +22,7 @@ export type GenerateDocumentationInput = z.infer<typeof GenerateDocumentationInp
 
 const GenerateDocumentationOutputSchema = z.object({
   article: z.string().describe('The generated documentation article in Markdown format.'),
-  imageUrl: z.string().url().describe('URL for a header image for the article.'),
+  imageUrl: z.string().describe('Data URI for a header image for the article.'),
 });
 export type GenerateDocumentationOutput = z.infer<typeof GenerateDocumentationOutputSchema>;
 
@@ -73,20 +70,9 @@ const generateDocumentationFlow = ai.defineFlow(
     outputSchema: GenerateDocumentationOutputSchema,
   },
   async (input) => {
-    // 1. Create a hash from the input topic to use as a cache key.
-    const hash = createHash('sha256').update(input.topic).digest('hex');
-    const docRef = adminDb.collection('documentation_cache').doc(hash);
+    console.log(`Generating new documentation for topic: "${input.topic}".`);
 
-    // 2. Check for a cached version of the documentation.
-    const docSnap = await docRef.get();
-    if (docSnap.exists()) {
-      console.log(`Returning cached documentation for topic: "${input.topic}"`);
-      return docSnap.data() as GenerateDocumentationOutput;
-    }
-    
-    console.log(`No cache hit for topic: "${input.topic}". Generating new documentation.`);
-
-    // 3. Generate article and image in parallel if not cached.
+    // Generate article and image in parallel.
     const [llmResponse, imageResponse] = await Promise.all([
       ai.generate({
         prompt: `Write a technical documentation article about the following TeoVerse feature: "${input.topic}"`,
@@ -107,7 +93,8 @@ Once you have the context from the source code, write a markdown article explain
       }),
       geny({
         prompt: `A futuristic, abstract, cyberpunk-style technical illustration representing the concept of "${input.topic}". Use a dark theme with vibrant orange (#f56502) and green (#15b56d) highlights.`,
-        imageSize: { width: 1200, height: 600 },
+        // Pass a salt to geny to ensure a unique image is generated for each documentation request.
+        salt: new Date().toISOString(),
       })
     ]);
     
@@ -116,17 +103,12 @@ Once you have the context from the source code, write a markdown article explain
       throw new Error("The AI model did not return a text response for the article.");
     }
 
-    if (!imageResponse?.url) {
-        throw new Error("The Geny service did not return an image URL.");
+    if (!imageResponse?.dataUri) {
+        throw new Error("The Geny service did not return an image data URI.");
     }
     
-    const result = { article, imageUrl: imageResponse.url };
-
-    // 4. Cache the newly generated documentation before returning.
-    await docRef.set({
-      ...result,
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    // The result now contains the article text and the image data URI.
+    const result = { article, imageUrl: imageResponse.dataUri };
 
     return result;
   }
@@ -136,7 +118,7 @@ Once you have the context from the source code, write a markdown article explain
 /**
  * Main endpoint function to generate documentation.
  * @param input The payload containing the documentation topic.
- * @returns The generated article in markdown format.
+ * @returns The generated article in markdown format and an image data URI.
  */
 export async function generateDocumentation(input: GenerateDocumentationInput): Promise<GenerateDocumentationOutput> {
   return generateDocumentationFlow(input);
