@@ -11,6 +11,8 @@ import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
+import { geny } from '@/ai/flows/geny-flow';
+import Image from 'next/image';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -19,6 +21,8 @@ export default function DashboardPage() {
   const [memberCount, setMemberCount] = useState(0);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [bioSignatureUrl, setBioSignatureUrl] = useState<string | null>(null);
+  const [isGeneratingSig, setIsGeneratingSig] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -39,7 +43,47 @@ export default function DashboardPage() {
     } else if (user === null) {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, toast]);
+
+  useEffect(() => {
+    if (passport) {
+      const generateSignature = async () => {
+        setIsGeneratingSig(true);
+        try {
+          const createPassportDigest = (p: Passport): string => {
+            const dataToHash = {
+              id: p.id,
+              email: p.email,
+              teoBalance: p.teoBalance,
+              physicalAssets: [...p.physicalAssets]
+                .sort((a, b) => a.id.localeCompare(b.id))
+                .map(({ id, name, type, value }) => ({ id, name, type, value })),
+              ipTokens: [...p.ipTokens]
+                .sort((a, b) => a.id.localeCompare(b.id))
+                .map(({ id, name, value }) => ({ id, name, value })),
+            };
+            return JSON.stringify(dataToHash);
+          };
+
+          const passportDigest = createPassportDigest(passport);
+          const prompt = `Generate an abstract, futuristic, cyberpunk digital bio-signature. It's a visual hash of a digital identity. The identity data is: ${passportDigest}. The visual should be intricate, unique, and incorporate the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a light gray (#EEEEEE) or dark background. It should look like a complex, glowing emblem or a digital fingerprint.`;
+
+          const response = await geny({
+            prompt: prompt,
+            imageSize: { width: 400, height: 400 }
+          });
+
+          setBioSignatureUrl(response.url);
+        } catch (error) {
+          console.error("Failed to generate bio-signature:", error);
+          toast({ title: "Signature Error", description: "Could not generate your Bio-Signature.", variant: "destructive" });
+        } finally {
+          setIsGeneratingSig(false);
+        }
+      };
+      generateSignature();
+    }
+  }, [passport, toast]);
   
   const MOCK_RATE = 10000; // From DEX page: 1 BTC = 10000 TEO
   const teoBalance = passport?.teoBalance || 0;
@@ -68,8 +112,8 @@ export default function DashboardPage() {
           <Skeleton className="h-28" />
         </div>
         <div className="grid gap-8 md:grid-cols-2">
-          <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-24 w-full" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-24 w-full" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-48 w-full" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-48 w-full" /></CardContent></Card>
         </div>
       </div>
     );
@@ -124,11 +168,27 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>My Assets</CardTitle>
-            <CardDescription>A summary of your tokenized property.</CardDescription>
+            <CardTitle>Bio-Signature</CardTitle>
+            <CardDescription>A unique visual hash of your passport, regenerated on any change.</CardDescription>
           </CardHeader>
-          <CardContent>
-             <p className="text-muted-foreground">You have {totalAssets} tokenized assets.</p>
+          <CardContent className="flex flex-col items-center justify-center gap-4 pt-4">
+             {isGeneratingSig ? (
+                <Skeleton className="h-48 w-48 rounded-lg" />
+            ) : bioSignatureUrl ? (
+                <Image
+                    src={bioSignatureUrl}
+                    alt="Your unique Bio-Signature"
+                    width={192}
+                    height={192}
+                    className="rounded-lg border-2 border-primary/50 shadow-lg"
+                    data-ai-hint="abstract cyberpunk"
+                />
+            ) : (
+                <div className="flex h-48 w-48 items-center justify-center rounded-lg border-2 border-dashed">
+                    <p className="text-center text-sm text-muted-foreground">Signature will be generated here.</p>
+                </div>
+            )}
+            <p className="text-center text-sm text-muted-foreground">You have {totalAssets} tokenized assets.</p>
           </CardContent>
         </Card>
       </div>
