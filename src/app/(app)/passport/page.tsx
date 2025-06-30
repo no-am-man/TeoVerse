@@ -5,7 +5,7 @@ import { useState, useEffect, ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -18,8 +18,9 @@ import { federationConfig } from '@/config';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
-import { createPassport, getPassport, updatePassport, mintTeos, type Passport, type IpToken } from '@/services/passport-service';
+import { createPassport, getPassport, updatePassport, mintTeos, deletePassport, type Passport, type IpToken } from '@/services/passport-service';
 import { addActivityLog } from '@/services/activity-log-service';
+import { cn } from '@/lib/utils';
 
 const assetFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -49,6 +50,7 @@ export default function PassportPage() {
   const [isAddAssetDialogOpen, setIsAddAssetDialogOpen] = useState(false);
   const [assetTypeToAdd, setAssetTypeToAdd] = useState<'physical' | 'ip' | null>(null);
   const [assetToDelete, setAssetToDelete] = useState<{ id: string; name: string; type: 'physical' | 'ip' } | null>(null);
+  const [isDeletePassportAlertOpen, setIsDeletePassportAlertOpen] = useState(false);
   
   useEffect(() => {
     if (user) {
@@ -189,6 +191,27 @@ export default function PassportPage() {
     }
   };
   
+  const handleDeletePassport = async () => {
+    if (!user) return;
+    try {
+        await deletePassport(user.uid);
+        setPassport(null); 
+        toast({
+            title: "Passport Deleted",
+            description: "Your passport has been successfully deleted. You can now mint a new one.",
+        });
+    } catch (error) {
+        console.error("Failed to delete passport:", error);
+        toast({
+            title: "Error",
+            description: "Failed to delete your passport. Please try again.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsDeletePassportAlertOpen(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-8 animate-pulse">
@@ -346,6 +369,20 @@ export default function PassportPage() {
               </CardContent>
           </Card>
         </div>
+
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-destructive">Danger Zone</CardTitle>
+                <CardDescription>
+                    Deleting your passport is permanent and cannot be undone.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button variant="destructive" onClick={() => setIsDeletePassportAlertOpen(true)}>
+                    Delete My Passport
+                </Button>
+            </CardContent>
+        </Card>
       </div>
 
       <Dialog open={isAddAssetDialogOpen} onOpenChange={setIsAddAssetDialogOpen}>
@@ -421,7 +458,22 @@ export default function PassportPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+                <AlertDialogAction onClick={confirmDelete} className={buttonVariants({ variant: "destructive" })}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isDeletePassportAlertOpen} onOpenChange={setIsDeletePassportAlertOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will permanently delete your passport and all associated data. This action cannot be undone.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeletePassport} className={cn(buttonVariants({ variant: "destructive" }))}>Delete Passport</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

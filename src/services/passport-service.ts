@@ -1,5 +1,5 @@
 import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp, runTransaction, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, runTransaction, collection, getDocs, deleteDoc, writeBatch, query } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { addActivityLog } from './activity-log-service';
 import { federationConfig } from '@/config';
@@ -86,6 +86,25 @@ export const mintTeos = async (userId: string, amount: number): Promise<void> =>
     });
 
     await addActivityLog(userId, 'MINT_TEO', `Minted ${amount.toLocaleString()} ${federationConfig.tokenSymbol}`);
+};
+
+export const deletePassport = async (userId: string): Promise<void> => {
+    const passportRef = doc(db, passportsCollection, userId);
+    
+    // Delete activity logs subcollection
+    const activityLogsCollectionRef = collection(db, 'passports', userId, 'activity_logs');
+    const activityLogsQuery = query(activityLogsCollectionRef);
+    const activityLogsSnap = await getDocs(activityLogsQuery);
+    
+    const batch = writeBatch(db);
+    activityLogsSnap.forEach((doc) => {
+        batch.delete(doc.ref);
+    });
+    
+    // Delete the main passport document
+    batch.delete(passportRef);
+
+    await batch.commit();
 };
 
 export const getFederationMemberCount = async (): Promise<number> => {
