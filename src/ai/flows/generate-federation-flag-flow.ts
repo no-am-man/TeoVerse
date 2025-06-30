@@ -33,10 +33,15 @@ const generateFederationFlagFlow = ai.defineFlow(
     outputSchema: GenerateFederationFlagOutputSchema,
   },
   async (input) => {
+    // Append the salt to the prompt to ensure deterministic or random generation.
+    const finalPrompt = input.salt
+      ? `${input.prompt} Salt: ${input.salt}`
+      : input.prompt;
+
     // 1. Generate a new image from the prompt.
     const { media } = await ai.generate({
       model: 'googleai/gemini-2.0-flash-preview-image-generation',
-      prompt: input.prompt,
+      prompt: finalPrompt,
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
       },
