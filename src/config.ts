@@ -5,6 +5,7 @@ type FederationConfig = {
   federationURL: string;
   tokenSymbol: string;
   tokenName: string;
+  version: string;
 };
 
 export const federationConfig: FederationConfig = config;

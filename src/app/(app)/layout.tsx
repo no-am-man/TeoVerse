@@ -17,13 +17,14 @@ import {
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
 import { UserNav } from '@/components/user-nav';
-import { LayoutDashboard, Wallet, Coins } from 'lucide-react';
+import { LayoutDashboard, Wallet, Coins, Link2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/passport', label: 'Passport', icon: Wallet },
   { href: '/dex', label: 'DEX', icon: Coins },
+  { href: '/federations', label: 'Federations', icon: Link2 },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

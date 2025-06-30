@@ -3,5 +3,6 @@
   "federationName": "TeoVerse",
   "federationURL": "http://localhost:9002",
   "tokenSymbol": "TEO",
-  "tokenName": "Teo Septem"
+  "tokenName": "Teo Septem",
+  "version": "1.0.0"
 }
