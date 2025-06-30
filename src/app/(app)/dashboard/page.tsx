@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { federationConfig } from '@/config';
-import { CreditCard, Landmark, PiggyBank, Flag, RefreshCw } from 'lucide-react';
+import { CreditCard, Landmark, PiggyBank, Flag, RefreshCw, Share2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getPassport, type Passport, getFederationMemberCount } from '@/services/passport-service';
 import { getRecentActivity, type ActivityLog } from '@/services/activity-log-service';
@@ -18,6 +18,10 @@ import { rtdb, storage } from '@/lib/firebase';
 import { ref as dbRef, onValue, off, set } from 'firebase/database';
 import { ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { sha256 } from '@/lib/crypto';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Copy } from 'lucide-react';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -29,6 +33,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [federationFlagUrl, setFederationFlagUrl] = useState<string | null>(null);
   const [isGeneratingFlag, setIsGeneratingFlag] = useState(false);
+  const [publicUrl, setPublicUrl] = useState('');
 
   // This function now handles caching based on a hash of the passport digest.
   const handleFlagGeneration = useCallback(async (digest: string, forceRegenerate = false) => {
@@ -39,7 +44,7 @@ export default function DashboardPage() {
       const flagId = await sha256(digest);
       const filePath = `federation_flags/${flagId}.png`;
       const fileRef = storageRef(storage, filePath);
-      const flagUrlDbRef = dbRef(rtdb, 'federation/flagUrl');
+      const flagUrlDbRef = dbRef(rtdb, `users/${user.uid}/federation/flagUrl`);
 
       let downloadURL: string | null = null;
       
@@ -47,7 +52,6 @@ export default function DashboardPage() {
         try {
           downloadURL = await getDownloadURL(fileRef);
         } catch (error: any) {
-          // If the file doesn't exist, we'll proceed to generate it.
           if (error.code !== 'storage/object-not-found') {
             console.warn("Error checking for existing flag:", error);
           }
@@ -55,18 +59,14 @@ export default function DashboardPage() {
       }
 
       if (downloadURL) {
-        // Flag exists, update the DB, which triggers the listener to update state.
         await set(flagUrlDbRef, downloadURL);
       } else {
-        // Flag doesn't exist or we're forcing regeneration.
         if (forceRegenerate) {
           toast({ title: "Regenerating Flag...", description: "A new flag is being forged for the federation." });
         }
         
         const prompt = `A futuristic, cyberpunk-style national flag for a digital sovereign state named '${federationConfig.federationName}'. The flag's design must be cryptographically derived from the following unique data hash, representing the state's identity: '${flagId}'. The design must be intricate, abstract, and incorporate the federation's theme colors - deep purple (#673AB7) and teal (#009688) - as glowing, neon-like elements against a dark, textured background.`;
         
-        // Use the digest as a salt for deterministic generation.
-        // Use a random salt only when forcing regeneration to get a different image.
         const salt = forceRegenerate ? Math.random().toString() : digest;
 
         const { dataUri } = await generateFederationFlag({ prompt, salt });
@@ -92,6 +92,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (user) {
+      setPublicUrl(`${window.location.origin}/federation/${user.uid}`);
       Promise.all([
         getPassport(user.uid),
         getFederationMemberCount(),
@@ -132,23 +133,20 @@ export default function DashboardPage() {
     }
   }, [passport]);
 
-  // Listen for flag updates from Realtime Database. This keeps all clients in sync.
   useEffect(() => {
-    const flagUrlRef = dbRef(rtdb, 'federation/flagUrl');
+    if (!user) return;
+    const flagUrlRef = dbRef(rtdb, `users/${user.uid}/federation/flagUrl`);
     
     const unsubscribe = onValue(flagUrlRef, (snapshot) => {
       const url = snapshot.val();
       if (url) {
-        setFederationFlagUrl(url); // This will update the UI in real-time for all users
+        setFederationFlagUrl(url);
       }
     });
 
-    // Cleanup listener on component unmount
     return () => off(flagUrlRef, 'value', unsubscribe);
-  }, []);
+  }, [user]);
 
-  // When the passport digest is available, sync the flag.
-  // The handler function is smart enough to check for a cached version first.
   useEffect(() => {
     if (passportDigest) {
       handleFlagGeneration(passportDigest);
@@ -160,10 +158,9 @@ export default function DashboardPage() {
     handleFlagGeneration(passportDigest, true);
   }, [passportDigest, handleFlagGeneration]);
 
-  const MOCK_BTC_USD_RATE = 50000; // Mock rate: 1 BTC = $50,000 USD
+  const MOCK_BTC_USD_RATE = 50000;
 
   const parseCurrency = (value: string): number => {
-    // Remove non-numeric characters except for decimal point
     const numericString = value.replace(/[^0-9.]/g, '');
     return parseFloat(numericString) || 0;
   };
@@ -184,6 +181,11 @@ export default function DashboardPage() {
     { title: `${federationConfig.tokenSymbol} Balance`, value: `${teoBalance.toLocaleString()} ${federationConfig.tokenSymbol}`, icon: PiggyBank, description: 'Your federation currency' },
     { title: 'Federation States', value: memberCount.toLocaleString(), icon: Flag, description: `1 Capital (You) + ${otherMemberCount.toLocaleString()} members` },
   ];
+
+  const handleCopyUrl = () => {
+    navigator.clipboard.writeText(publicUrl);
+    toast({ title: "Copied!", description: "Public federation URL copied to clipboard." });
+  };
 
   if (loading) {
     return (
@@ -260,12 +262,46 @@ export default function DashboardPage() {
                 <CardTitle>Federation Flag</CardTitle>
                 <CardDescription>The official flag of the {federationConfig.federationName} federation, generated from the Capital State's passport.</CardDescription>
               </div>
-              {federationFlagUrl && (
-                 <Button variant="outline" size="icon" onClick={regenerateFlag} disabled={isGeneratingFlag}>
-                    <RefreshCw className="h-4 w-4" />
-                    <span className="sr-only">Regenerate Flag</span>
-                 </Button>
-              )}
+              <div className="flex items-center gap-2">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <Share2 className="h-4 w-4" />
+                      <span className="sr-only">Share Federation</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Share your Federation</DialogTitle>
+                      <DialogDescription>
+                        Anyone with this link can view your public federation page and interact with the AI ambassador.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex items-center space-x-2">
+                      <div className="grid flex-1 gap-2">
+                        <Label htmlFor="link" className="sr-only">
+                          Link
+                        </Label>
+                        <Input
+                          id="link"
+                          defaultValue={publicUrl}
+                          readOnly
+                        />
+                      </div>
+                      <Button type="button" size="sm" className="px-3" onClick={handleCopyUrl}>
+                        <span className="sr-only">Copy</span>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                {federationFlagUrl && (
+                  <Button variant="outline" size="icon" onClick={regenerateFlag} disabled={isGeneratingFlag}>
+                      <RefreshCw className="h-4 w-4" />
+                      <span className="sr-only">Regenerate Flag</span>
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center gap-4 pt-4">
