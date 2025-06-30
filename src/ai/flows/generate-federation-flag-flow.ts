@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow to generate and update the Federation Flag.
@@ -11,7 +12,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { setFederationFlagUrl } from '@/services/federation-service';
 import { storage } from '@/lib/firebase';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { createHash } from 'crypto';
 
 const GenerateFederationFlagInputSchema = z.object({
@@ -64,7 +65,9 @@ const generateFederationFlagFlow = ai.defineFlow(
     const storageRef = ref(storage, `federation_flags/${hash}.png`);
     const base64Data = dataUri.substring(dataUri.indexOf(',') + 1);
     
-    const uploadResult = await uploadString(storageRef, base64Data, 'base64', {
+    // Using uploadBytes with a Buffer is more robust in server environments.
+    const imageBuffer = Buffer.from(base64Data, 'base64');
+    const uploadResult = await uploadBytes(storageRef, imageBuffer, {
       contentType: 'image/png',
     });
     const downloadURL = await getDownloadURL(uploadResult.ref);
