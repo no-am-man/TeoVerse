@@ -8,6 +8,7 @@ const DOCS_CACHE_COLLECTION = 'documentationCache';
 
 /**
  * Fetches all available cached documentation for a specific version.
+ * This is called by the UI to determine which articles are already generated.
  * @param version The app version to fetch docs for.
  * @returns A promise resolving to a map of topic to documentation data.
  */
