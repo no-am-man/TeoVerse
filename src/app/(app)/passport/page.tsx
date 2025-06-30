@@ -13,17 +13,21 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Computer, Smartphone, Home, BrainCircuit, FileText, User as UserIcon, Coins } from 'lucide-react';
+import { Computer, Smartphone, Home, BrainCircuit, FileText, User as UserIcon, Coins, MoreHorizontal, Trash2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { federationConfig } from '@/config';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
-import { createPassport, getPassport, updatePassport, mintTeos, deletePassport, type Passport, type IpToken, type PhysicalAsset } from '@/services/passport-service';
+import { createPassport, getPassport, updatePassport, mintTeos, deletePassport, type Passport, type IpToken, type PhysicalAsset, type ActivityType } from '@/services/passport-service';
 import { addActivityLog } from '@/services/activity-log-service';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
 
 const assetFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -54,6 +58,9 @@ export default function PassportPage() {
   const [assetTypeToAdd, setAssetTypeToAdd] = useState<'physical' | 'ip' | null>(null);
   const [isDeletePassportAlertOpen, setIsDeletePassportAlertOpen] = useState(false);
   
+  const [assetToDelete, setAssetToDelete] = useState<{ id: string; name: string; type: 'physical' | 'ip' } | null>(null);
+  const [isDeleteAssetAlertOpen, setIsDeleteAssetAlertOpen] = useState(false);
+
   useEffect(() => {
     if (user) {
       setIsLoading(true);
@@ -188,6 +195,45 @@ export default function PassportPage() {
         toast({ title: "Error", description: "Failed to update asset status.", variant: "destructive" });
     }
   };
+
+  const handleDeleteAsset = async () => {
+    if (!user || !passport || !assetToDelete) return;
+
+    try {
+      let updatedPassport: Passport;
+      let logDescription: string;
+      let logType: ActivityType;
+
+      if (assetToDelete.type === 'physical') {
+        const updatedAssets = passport.physicalAssets.filter(asset => asset.id !== assetToDelete.id);
+        updatedPassport = { ...passport, physicalAssets: updatedAssets };
+        logDescription = `Removed physical asset: ${assetToDelete.name}`;
+        logType = 'REMOVE_PHYSICAL_ASSET';
+      } else {
+        const updatedTokens = passport.ipTokens.filter(token => token.id !== assetToDelete.id);
+        updatedPassport = { ...passport, ipTokens: updatedTokens };
+        logDescription = `Burned IP token: ${assetToDelete.name}`;
+        logType = 'BURN_IP_TOKEN';
+      }
+      
+      await updatePassport(user.uid, {
+          physicalAssets: updatedPassport.physicalAssets,
+          ipTokens: updatedPassport.ipTokens
+      });
+      await addActivityLog(user.uid, logType, logDescription);
+      
+      setPassport(updatedPassport);
+      toast({ title: "Asset Removed", description: `The asset "${assetToDelete.name}" has been removed.` });
+
+    } catch (error) {
+      console.error("Failed to delete asset:", error);
+      toast({ title: "Error", description: "Failed to remove asset.", variant: "destructive" });
+    } finally {
+      setIsDeleteAssetAlertOpen(false);
+      setAssetToDelete(null);
+    }
+  };
+
 
   const handleMintTeos = async (values: MintFormValues) => {
     if (!user) return;
@@ -329,7 +375,8 @@ export default function PassportPage() {
                           <TableRow>
                               <TableHead>Asset</TableHead>
                               <TableHead>Value (USD)</TableHead>
-                              <TableHead className="text-right">For Sale</TableHead>
+                              <TableHead>For Sale</TableHead>
+                              <TableHead className="text-right"></TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -339,13 +386,35 @@ export default function PassportPage() {
                                       {getAssetIcon(asset.type || asset.name)} {asset.name} <Badge variant="outline">{asset.type}</Badge>
                                   </TableCell>
                                   <TableCell>{asset.value}</TableCell>
-                                  <TableCell className="text-right">
+                                  <TableCell>
                                     <Switch
                                         id={`physical-${asset.id}`}
                                         checked={asset.forSale}
                                         onCheckedChange={() => handleToggleForSale(asset.id, 'physical')}
                                         aria-label="Toggle for sale"
                                     />
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                          <MoreHorizontal className="h-4 w-4" />
+                                          <span className="sr-only">Actions</span>
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem
+                                          className="text-destructive"
+                                          onSelect={() => {
+                                            setAssetToDelete({ id: asset.id, name: asset.name, type: 'physical' });
+                                            setIsDeleteAssetAlertOpen(true);
+                                          }}
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Delete
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   </TableCell>
                               </TableRow>
                           ))}
@@ -365,7 +434,8 @@ export default function PassportPage() {
                           <TableRow>
                               <TableHead>Token</TableHead>
                               <TableHead>Value (USD)</TableHead>
-                              <TableHead className="text-right">For Sale</TableHead>
+                              <TableHead>For Sale</TableHead>
+                              <TableHead className="text-right"></TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -376,13 +446,35 @@ export default function PassportPage() {
                                     {token.name}
                                   </TableCell>
                                   <TableCell>{token.value}</TableCell>
-                                  <TableCell className="text-right">
+                                  <TableCell>
                                     <Switch
                                         id={`ip-${token.id}`}
                                         checked={token.forSale}
                                         onCheckedChange={() => handleToggleForSale(token.id, 'ip')}
                                         aria-label="Toggle for sale"
                                     />
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                          <MoreHorizontal className="h-4 w-4" />
+                                          <span className="sr-only">Actions</span>
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem
+                                          className="text-destructive"
+                                          onSelect={() => {
+                                            setAssetToDelete({ id: token.id, name: token.name, type: 'ip' });
+                                            setIsDeleteAssetAlertOpen(true);
+                                          }}
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Delete
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   </TableCell>
                               </TableRow>
                           ))}
@@ -485,6 +577,22 @@ export default function PassportPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      <AlertDialog open={isDeleteAssetAlertOpen} onOpenChange={setIsDeleteAssetAlertOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will permanently remove the asset "{assetToDelete?.name}" from your passport. This action cannot be undone.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setAssetToDelete(null)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteAsset} className={cn(buttonVariants({ variant: "destructive" }))}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </>
   );
 }
