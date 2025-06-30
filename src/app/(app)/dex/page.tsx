@@ -5,36 +5,42 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowDownUp } from "lucide-react";
+import { ArrowDownUp, CheckCircle2 } from "lucide-react";
 import { federationConfig } from "@/config";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useCallback } from "react";
 
 const MOCK_RATE = 10000;
+const MOCK_BTC_BALANCE = 100;
 
 export default function DexPage() {
   const { toast } = useToast();
   const [fromAmount, setFromAmount] = useState('0.01');
   const [toAmount, setToAmount] = useState((0.01 * MOCK_RATE).toString());
   const [isFromBtc, setIsFromBtc] = useState(true);
+  const [isWalletConnected, setIsWalletConnected] = useState(false);
 
   const fromCurrency = isFromBtc ? 'BTC' : federationConfig.tokenSymbol;
   const toCurrency = isFromBtc ? federationConfig.tokenSymbol : 'BTC';
 
   const handleAmountChange = useCallback((value: string, type: 'from' | 'to') => {
     const numValue = parseFloat(value);
-    if (isNaN(numValue)) {
+    if (isNaN(numValue) || value === '') {
       setFromAmount('');
       setToAmount('');
       return;
     }
 
+    const toLocaleStringNoE = (num: number) => num.toLocaleString('fullwide', { useGrouping: false, maximumFractionDigits: 20 });
+
     if (type === 'from') {
       setFromAmount(value);
-      setToAmount((isFromBtc ? numValue * MOCK_RATE : numValue / MOCK_RATE).toString());
+      const calculatedToAmount = isFromBtc ? numValue * MOCK_RATE : numValue / MOCK_RATE;
+      setToAmount(toLocaleStringNoE(calculatedToAmount));
     } else {
       setToAmount(value);
-      setFromAmount((isFromBtc ? numValue / MOCK_RATE : numValue * MOCK_RATE).toString());
+      const calculatedFromAmount = isFromBtc ? numValue / MOCK_RATE : numValue * MOCK_RATE;
+      setFromAmount(toLocaleStringNoE(calculatedFromAmount));
     }
   }, [isFromBtc]);
 
@@ -45,12 +51,37 @@ export default function DexPage() {
     setToAmount(currentFrom);
   }
 
+  const handleConnectWallet = () => {
+    setIsWalletConnected(true);
+    toast({
+        title: "Wallet Connected",
+        description: `UniSat wallet (emulated) connected with a mock balance of ${MOCK_BTC_BALANCE} BTC.`,
+    });
+  }
+
   const handleSwap = () => {
+    const fromAmountNum = parseFloat(fromAmount);
+    
+    if (isFromBtc && fromAmountNum > MOCK_BTC_BALANCE) {
+        toast({
+            title: "Insufficient Balance",
+            description: `Your mock BTC balance is only ${MOCK_BTC_BALANCE} BTC.`,
+            variant: "destructive",
+        });
+        return;
+    }
+
     toast({
         title: "Transaction Submitted",
         description: `Swapping ${fromAmount} ${fromCurrency} for ${toAmount} ${toCurrency}. This is a mock transaction.`,
     });
   };
+  
+  const btcBalanceDisplay = (
+      <div className="text-xs text-muted-foreground">
+          Balance: {MOCK_BTC_BALANCE.toLocaleString()} BTC
+      </div>
+  );
   
   return (
     <div className="space-y-8">
@@ -71,8 +102,11 @@ export default function DexPage() {
               <CardDescription>Exchange BTC and {federationConfig.tokenSymbol} seamlessly.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="from-amount">From</Label>
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                    <Label htmlFor="from-amount">From</Label>
+                    {isFromBtc && isWalletConnected && btcBalanceDisplay}
+                </div>
                 <div className="flex gap-2">
                   <Input id="from-amount" type="number" value={fromAmount} onChange={(e) => handleAmountChange(e.target.value, 'from')} />
                   <Button variant="outline" className="w-32 shrink-0">{fromCurrency}</Button>
@@ -81,18 +115,28 @@ export default function DexPage() {
               <div className="flex justify-center my-[-8px]">
                 <Button variant="ghost" size="icon" onClick={handleFlip}><ArrowDownUp className="h-4 w-4" /></Button>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="to-amount">To</Label>
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                    <Label htmlFor="to-amount">To</Label>
+                    {!isFromBtc && isWalletConnected && btcBalanceDisplay}
+                </div>
                 <div className="flex gap-2">
                   <Input id="to-amount" type="number" value={toAmount} onChange={(e) => handleAmountChange(e.target.value, 'to')} />
                   <Button variant="outline" className="w-32 shrink-0">{toCurrency}</Button>
                 </div>
               </div>
               <div className="text-sm text-muted-foreground pt-2">
-                Rate: 1 BTC ≈ {MOCK_RATE} {federationConfig.tokenSymbol} (mock rate)
+                Rate: 1 BTC ≈ {MOCK_RATE.toLocaleString()} {federationConfig.tokenSymbol} (mock rate)
               </div>
-              <Button className="w-full" size="lg" onClick={handleSwap}>Connect Wallet & Swap</Button>
-              <p className="text-xs text-center text-muted-foreground pt-2">Powered by UniSat Wallet (Emulated)</p>
+              {isWalletConnected ? (
+                 <Button className="w-full" size="lg" onClick={handleSwap}>Swap</Button>
+              ) : (
+                <Button className="w-full" size="lg" onClick={handleConnectWallet}>Connect Wallet</Button>
+              )}
+              <p className="text-xs text-center text-muted-foreground pt-2 flex items-center justify-center gap-1.5">
+                 {isWalletConnected && <CheckCircle2 className="h-3 w-3 text-green-500" />}
+                Powered by UniSat Wallet ({isWalletConnected ? "Connected" : "Emulated"})
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
