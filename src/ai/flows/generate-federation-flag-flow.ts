@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview A flow to generate and update the Federation Flag.
+ * @fileOverview A flow to generate the Federation Flag image data.
  *
  * - generateFederationFlag - The main endpoint function.
  * - GenerateFederationFlagInput - The input type for the function.
@@ -10,21 +10,16 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { setFederationFlagUrl } from '@/services/federation-service';
-import { storage } from '@/lib/firebase';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { createHash } from 'crypto';
 
 const GenerateFederationFlagInputSchema = z.object({
   prompt: z.string().describe('The detailed text prompt to generate the flag from.'),
   // The salt is used to ensure the image is unique on regeneration, even if the prompt is the same.
-  // The hash of the prompt + salt will be the image name in storage.
   salt: z.string().optional().describe('An optional random string to force regeneration.'),
 });
 export type GenerateFederationFlagInput = z.infer<typeof GenerateFederationFlagInputSchema>;
 
 const GenerateFederationFlagOutputSchema = z.object({
-  url: z.string().describe('The URL of the generated flag image.'),
+  dataUri: z.string().describe('The data URI of the generated flag image.'),
 });
 export type GenerateFederationFlagOutput = z.infer<typeof GenerateFederationFlagOutputSchema>;
 
@@ -39,9 +34,9 @@ const generateFederationFlagFlow = ai.defineFlow(
     outputSchema: GenerateFederationFlagOutputSchema,
   },
   async (input) => {
-    console.log('Generating new Federation Flag.');
+    console.log('Generating new Federation Flag image data.');
 
-    // 1. Generate a new image.
+    // 1. Generate a new image from the prompt.
     const { media } = await ai.generate({
       model: 'googleai/gemini-2.0-flash-preview-image-generation',
       prompt: input.prompt,
@@ -55,30 +50,8 @@ const generateFederationFlagFlow = ai.defineFlow(
         'Image generation failed to return a valid media object.'
       );
     }
-    const dataUri = media.url;
-
-    // 2. Create a unique name for the file in storage.
-    const uniqueString = JSON.stringify(input);
-    const hash = createHash('sha256').update(uniqueString).digest('hex');
-    const storageRef = ref(storage, `federation_flags/${hash}.png`);
-
-    // 3. Upload to Firebase Storage to get a public URL.
-    // Manually extract the base64 data from the data URI for a more robust upload.
-    const commaIndex = dataUri.indexOf(',');
-    if (commaIndex === -1) {
-      throw new Error('Invalid data URI from image generation model.');
-    }
-    const base64Data = dataUri.substring(commaIndex + 1);
     
-    const uploadResult = await uploadString(storageRef, base64Data, 'base64', {
-      contentType: 'image/png',
-    });
-    const downloadURL = await getDownloadURL(uploadResult.ref);
-
-    // 4. Update the flag URL in the Realtime Database for all clients.
-    await setFederationFlagUrl(downloadURL);
-
-    // 5. Return the URL.
-    return { url: downloadURL };
+    // 2. Return the data URI. The client will handle storage and database updates.
+    return { dataUri: media.url };
   }
 );

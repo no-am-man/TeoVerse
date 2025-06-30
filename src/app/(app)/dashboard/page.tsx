@@ -12,6 +12,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { generateFederationFlag } from '@/ai/flows/generate-federation-flag-flow';
+import { setFederationFlagUrl } from '@/services/federation-service';
+import { storage } from '@/lib/firebase';
+import { ref as firebaseStorageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { rtdb } from '@/lib/firebase';
@@ -28,6 +31,54 @@ export default function DashboardPage() {
   const [federationFlagUrl, setFederationFlagUrl] = useState<string | null>(null);
   const [isGeneratingFlag, setIsGeneratingFlag] = useState(false);
   const isInitialMount = useRef(true);
+
+  // This is the core logic for generating and uploading the flag.
+  // It's now called from the client-side to leverage the authenticated user's context.
+  const handleFlagGeneration = useCallback(async (prompt: string, salt?: string) => {
+    if (!user) return;
+    setIsGeneratingFlag(true);
+
+    try {
+      // 1. Call the AI flow to get the image data URI
+      const { dataUri } = await generateFederationFlag({ prompt, salt });
+
+      if (!dataUri) {
+        throw new Error("AI flow did not return image data.");
+      }
+
+      // 2. Create a unique filename for the image in Firebase Storage
+      const uniqueName = `${user.uid}-${Date.now()}`;
+      const imageRef = firebaseStorageRef(storage, `federation_flags/${uniqueName}.png`);
+
+      // 3. Upload the image data to Firebase Storage
+      // Extract base64 data from the data URI
+      const commaIndex = dataUri.indexOf(',');
+      if (commaIndex === -1) {
+        throw new Error('Invalid data URI from image generation model.');
+      }
+      const base64Data = dataUri.substring(commaIndex + 1);
+
+      const uploadResult = await uploadString(imageRef, base64Data, 'base64', {
+        contentType: 'image/png',
+      });
+
+      // 4. Get the public download URL for the uploaded image
+      const downloadURL = await getDownloadURL(uploadResult.ref);
+
+      // 5. Update local state immediately for a fast UI response
+      setFederationFlagUrl(downloadURL);
+
+      // 6. Update the Realtime Database to broadcast the new flag to all members
+      await setFederationFlagUrl(downloadURL);
+
+    } catch (error) {
+      console.error("Failed during flag generation and upload:", error);
+      toast({ title: "Flag Error", description: "Could not create the Federation Flag.", variant: "destructive" });
+    } finally {
+      setIsGeneratingFlag(false);
+    }
+  }, [user, toast]);
+
 
   useEffect(() => {
     if (user) {
@@ -92,39 +143,21 @@ export default function DashboardPage() {
     }
 
     if (passportDigest) {
-      const generateFlag = async () => {
-        try {
-          const prompt = `Generate a futuristic, cyberpunk-style flag for the ${federationConfig.federationName} federation. The flag's design is derived from the Capital State's passport, representing the core identity of the federation. The identity data used to generate the flag is: ${passportDigest}. The design should be intricate and unique, incorporating the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a dark background. It should look like a national flag for a digital sovereign state.`;
-          const result = await generateFederationFlag({ prompt });
-          setFederationFlagUrl(result.url); // Set local state for a fast, silent update
-        } catch (error) {
-          console.error("Failed to automatically update Federation flag:", error);
-        }
-      };
-      generateFlag();
+      const prompt = `Generate a futuristic, cyberpunk-style flag for the ${federationConfig.federationName} federation. The flag's design is derived from the Capital State's passport, representing the core identity of the federation. The identity data used to generate the flag is: ${passportDigest}. The design should be intricate and unique, incorporating the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a dark background. It should look like a national flag for a digital sovereign state.`;
+      handleFlagGeneration(prompt);
     }
-  }, [passportDigest]);
+  }, [passportDigest, handleFlagGeneration]);
   
   const regenerateFlag = useCallback(async () => {
     if (!passportDigest) return;
 
-    setIsGeneratingFlag(true);
     toast({ title: "Regenerating Flag...", description: "A new flag is being forged for the federation." });
-    try {
-      const prompt = `Generate a futuristic, cyberpunk-style flag for the ${federationConfig.federationName} federation. The flag's design is derived from the Capital State's passport, representing the core identity of the federation. The identity data used to generate the flag is: ${passportDigest}. The design should be intricate and unique, incorporating the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a dark background. It should look like a national flag for a digital sovereign state.`;
+    const prompt = `Generate a futuristic, cyberpunk-style flag for the ${federationConfig.federationName} federation. The flag's design is derived from the Capital State's passport, representing the core identity of the federation. The identity data used to generate the flag is: ${passportDigest}. The design should be intricate and unique, incorporating the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a dark background. It should look like a national flag for a digital sovereign state.`;
+    
+    // Pass a random salt to ensure a new image is generated
+    handleFlagGeneration(prompt, Math.random().toString());
 
-      const result = await generateFederationFlag({
-        prompt: prompt,
-        salt: Math.random().toString(),
-      });
-      setFederationFlagUrl(result.url); // Set local state for an immediate update
-    } catch (error) {
-      console.error("Failed to regenerate Federation flag:", error);
-      toast({ title: "Flag Error", description: "Could not regenerate the Federation Flag.", variant: "destructive" });
-    } finally {
-      setIsGeneratingFlag(false);
-    }
-  }, [passportDigest, toast]);
+  }, [passportDigest, toast, handleFlagGeneration]);
 
   const MOCK_RATE = 10000; // From DEX page: 1 BTC = 10000 TEO
   const teoBalance = passport?.teoBalance || 0;
@@ -224,7 +257,7 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center gap-4 pt-4">
-             {isGeneratingFlag || (!federationFlagUrl && loading) ? (
+             {isGeneratingFlag ? (
                 <Skeleton className="h-48 w-48 rounded-lg" />
             ) : federationFlagUrl ? (
                 <Image
