@@ -14,8 +14,9 @@ import { formatDistanceToNow } from 'date-fns';
 import { generateFederationFlag } from '@/ai/flows/generate-federation-flag-flow';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { rtdb } from '@/lib/firebase';
-import { ref, onValue, off } from 'firebase/database';
+import { rtdb, storage } from '@/lib/firebase';
+import { ref as dbRef, onValue, off, set } from 'firebase/database';
+import { ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -29,25 +30,32 @@ export default function DashboardPage() {
   const [isGeneratingFlag, setIsGeneratingFlag] = useState(false);
   const isInitialMount = useRef(true);
 
-  // This function now calls the server-side AI flow which handles everything.
   const handleFlagGeneration = useCallback(async (prompt: string, salt?: string) => {
     if (!user) return;
     setIsGeneratingFlag(true);
 
     try {
-      // 1. Call the AI flow. The flow now handles the entire process:
-      //    generation, upload to Storage, and update to Realtime DB.
-      //    It returns the final public URL for an immediate UI update.
+      // 1. Call the AI flow to get the raw image data.
       const { dataUri } = await generateFederationFlag({ prompt, salt });
 
       if (!dataUri) {
-        throw new Error("AI flow did not return a URL.");
+        throw new Error("AI flow did not return image data.");
       }
+
+      // 2. Upload to Firebase Storage from the client.
+      const filePath = `federation_flags/${user.uid}-${Date.now()}.png`;
+      const fileRef = storageRef(storage, filePath);
       
-      // 2. Update local state immediately for a fast UI response.
-      // The Realtime DB listener will handle updates for other users,
-      // and this will prevent a re-render for the current user.
-      setFederationFlagUrl(dataUri);
+      // 'data_url' is the correct format string for uploadString with data URIs
+      const uploadResult = await uploadString(fileRef, dataUri, 'data_url');
+      const downloadURL = await getDownloadURL(uploadResult.ref);
+
+      // 3. Update the Realtime Database with the new flag URL.
+      const flagUrlDbRef = dbRef(rtdb, 'federation/flagUrl');
+      await set(flagUrlDbRef, downloadURL);
+      
+      // 4. Update local state immediately. The RTDB listener will handle the rest.
+      setFederationFlagUrl(downloadURL);
 
     } catch (error) {
       console.error("Failed during flag generation:", error);
@@ -103,7 +111,7 @@ export default function DashboardPage() {
 
   // Listen for flag updates from Realtime Database. This keeps all clients in sync.
   useEffect(() => {
-    const flagUrlRef = ref(rtdb, 'federation/flagUrl');
+    const flagUrlRef = dbRef(rtdb, 'federation/flagUrl');
     
     const unsubscribe = onValue(flagUrlRef, (snapshot) => {
       const url = snapshot.val();
