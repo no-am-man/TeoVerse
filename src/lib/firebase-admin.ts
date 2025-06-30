@@ -2,25 +2,14 @@
 'use server';
 import * as admin from 'firebase-admin';
 
-let app: admin.app.App;
-
-try {
-  if (admin.apps.length) {
-    app = admin.app();
-  } else {
-    // Explicitly provide the configuration that the SDK is failing to auto-discover.
-    // It will still use Application Default Credentials for authentication in a managed environment.
-    app = admin.initializeApp({
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-    });
-  }
-} catch (error: any) {
-  console.error('CRITICAL: Firebase admin initialization failed.', error);
-  // Re-throwing the original error is important to prevent the app from
-  // starting in a broken state where downstream services would also fail.
-  throw error;
+// This guard prevents re-initialization in development environments (hot-reloading).
+if (!admin.apps.length) {
+  // In a managed environment like App Hosting, initializeApp() with no arguments
+  // automatically discovers service credentials and project configuration.
+  // This is the recommended approach.
+  admin.initializeApp();
 }
 
-export const adminStorage = app.storage();
-export const adminRtdb = app.database();
+// Export the initialized services for use in other server-side modules.
+export const adminStorage = admin.storage();
+export const adminRtdb = admin.database();
