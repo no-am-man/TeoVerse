@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from 'react';
+import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +24,7 @@ export default function DocumentationPage() {
   const { toast } = useToast();
   const [topic, setTopic] = useState<string>('');
   const [article, setArticle] = useState<string>('');
+  const [imageUrl, setImageUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const handleGenerate = async () => {
@@ -37,10 +39,12 @@ export default function DocumentationPage() {
 
     setIsLoading(true);
     setArticle('');
+    setImageUrl('');
 
     try {
       const result = await generateDocumentation({ topic });
       setArticle(result.article);
+      setImageUrl(result.imageUrl);
     } catch (error) {
       console.error("Documentation generation failed:", error);
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
@@ -55,17 +59,20 @@ export default function DocumentationPage() {
   };
 
   const LoadingState = () => (
-    <div className="space-y-4">
-      <Skeleton className="h-8 w-1/2" />
-      <div className="space-y-2">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-3/4" />
-      </div>
-      <Skeleton className="h-6 w-1/3" />
-      <div className="space-y-2">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-5/6" />
+    <div className="space-y-6">
+      <Skeleton className="aspect-video w-full rounded-lg" />
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-1/2" />
+        <div className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+        </div>
+        <Skeleton className="h-6 w-1/3" />
+        <div className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+        </div>
       </div>
     </div>
   );
@@ -74,7 +81,7 @@ export default function DocumentationPage() {
     <div className="text-center text-muted-foreground py-12">
         <BookText className="mx-auto h-12 w-12" />
         <h3 className="mt-4 text-lg font-medium">Live Documentation</h3>
-        <p className="mt-1">Select a topic and let the AI generate a technical overview.</p>
+        <p className="mt-1">Select a topic and let the AI generate a technical overview with a header image.</p>
     </div>
   );
 
@@ -120,6 +127,16 @@ export default function DocumentationPage() {
         <CardContent className="p-6">
             {isLoading ? <LoadingState /> : article ? (
                 <article className="prose dark:prose-invert max-w-none">
+                    {imageUrl && (
+                        <Image
+                            src={imageUrl}
+                            alt={`Generated image for ${topic}`}
+                            width={1200}
+                            height={600}
+                            className="w-full aspect-video object-cover rounded-lg mb-8"
+                            data-ai-hint="documentation abstract"
+                        />
+                    )}
                     <ReactMarkdown>{article}</ReactMarkdown>
                 </article>
             ) : (

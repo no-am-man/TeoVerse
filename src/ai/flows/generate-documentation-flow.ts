@@ -11,6 +11,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { geny } from './geny-flow';
 
 // Zod Schemas for input and output
 const GenerateDocumentationInputSchema = z.object({
@@ -20,6 +21,7 @@ export type GenerateDocumentationInput = z.infer<typeof GenerateDocumentationInp
 
 const GenerateDocumentationOutputSchema = z.object({
   article: z.string().describe('The generated documentation article in Markdown format.'),
+  imageUrl: z.string().url().describe('URL for a header image for the article.'),
 });
 export type GenerateDocumentationOutput = z.infer<typeof GenerateDocumentationOutputSchema>;
 
@@ -67,11 +69,13 @@ const generateDocumentationFlow = ai.defineFlow(
     outputSchema: GenerateDocumentationOutputSchema,
   },
   async (input) => {
-    const llmResponse = await ai.generate({
-      prompt: `Write a technical documentation article about the following TeoVerse feature: "${input.topic}"`,
-      model: 'googleai/gemini-2.0-flash',
-      tools: [getFileContentTool],
-      system: `You are an expert technical writer for the TeoVerse project. Your task is to write a clear, concise, and professional documentation article about a specific feature.
+    // Generate article and image in parallel to speed things up
+    const [llmResponse, imageResponse] = await Promise.all([
+      ai.generate({
+        prompt: `Write a technical documentation article about the following TeoVerse feature: "${input.topic}"`,
+        model: 'googleai/gemini-2.0-flash',
+        tools: [getFileContentTool],
+        system: `You are an expert technical writer for the TeoVerse project. Your task is to write a clear, concise, and professional documentation article about a specific feature.
 
 First, you MUST use the getFileContentTool to read the relevant source code files to understand the feature implementation. You should look for files in 'src/app/(app)/...', 'src/services/...', and 'src/ai/flows/...'.
 
@@ -83,13 +87,23 @@ Once you have the context from the source code, write a markdown article explain
 - Use markdown for formatting, including headers, lists, and code blocks for short snippets if necessary.
 - Do NOT just copy the file content. Synthesize and explain it in your own words.
 - The article should be about the feature, not about how to use the documentation generation tool itself.`,
-    });
+      }),
+      geny({
+        prompt: `A futuristic, abstract, cyberpunk-style technical illustration representing the concept of "${input.topic}". Use a dark theme with vibrant orange and green highlights.`,
+        imageSize: { width: 1200, height: 600 },
+      })
+    ]);
     
     const article = llmResponse.text;
     if (!article) {
-      throw new Error("The AI model did not return a response.");
+      throw new Error("The AI model did not return a text response for the article.");
     }
-    return { article };
+
+    if (!imageResponse?.url) {
+        throw new Error("The Geny service did not return an image URL.");
+    }
+    
+    return { article, imageUrl: imageResponse.url };
   }
 );
 
