@@ -91,11 +91,12 @@ export default function DashboardPage() {
   const totalAssets = (passport?.physicalAssets?.length || 0) + (passport?.ipTokens?.length || 0);
   const MOCK_BTC_BALANCE = 100;
   
+  const otherMemberCount = memberCount > 0 ? memberCount - 1 : 0;
   const stats = [
     { title: 'Passport Value', value: `${passportValueInBtc.toFixed(4)} BTC`, icon: CreditCard, description: `Based on your ${federationConfig.tokenSymbol} balance` },
     { title: 'BTC Balance', value: `${MOCK_BTC_BALANCE.toLocaleString()} BTC`, icon: Landmark, description: 'From your connected UniSat wallet (mock)' },
     { title: `${federationConfig.tokenSymbol} Balance`, value: `${teoBalance.toLocaleString()} ${federationConfig.tokenSymbol}`, icon: PiggyBank, description: 'Your federation currency' },
-    { title: 'Federation States', value: memberCount.toLocaleString(), icon: Flag, description: 'Total states in this federation' },
+    { title: 'Federation States', value: memberCount.toLocaleString(), icon: Flag, description: `1 Capital (You) + ${otherMemberCount.toLocaleString()} members` },
   ];
 
   if (loading) {
