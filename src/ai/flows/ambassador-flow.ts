@@ -70,7 +70,7 @@ const ambassadorFlow = ai.defineFlow(
     outputSchema: AmbassadorOutputSchema,
   },
   async (input) => {
-    const { output } = await ai.generate({
+    const response = await ai.generate({
       prompt: input.question,
       model: 'googleai/gemini-2.0-flash',
       tools: [getFederationDataTool],
@@ -92,11 +92,13 @@ When asked about the federation, you can talk about its name and currency symbol
       history: input.history,
     });
 
-    if (!output || !output.text) {
+    const answer = response.text;
+
+    if (!answer) {
       throw new Error("The AI model did not return a response.");
     }
 
-    return { answer: output.text };
+    return { answer };
   }
 );
 
