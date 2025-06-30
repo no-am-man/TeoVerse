@@ -81,12 +81,18 @@ const genyFlow = ai.defineFlow(
       );
     }
     const dataUri = media.url;
-
+    
     // 4. Upload to Firebase Storage to get a public URL.
     const storageRef = ref(storage, `generated_images/${hash}.png`);
     
-    // Use the 'data_url' format, which is the most robust way to upload a data URI.
-    const uploadResult = await uploadString(storageRef, dataUri, 'data_url', {
+    // Manually extract the base64 data from the data URI for a more robust upload.
+    const commaIndex = dataUri.indexOf(',');
+    if (commaIndex === -1) {
+      throw new Error('Invalid data URI from image generation model.');
+    }
+    const base64Data = dataUri.substring(commaIndex + 1);
+
+    const uploadResult = await uploadString(storageRef, base64Data, 'base64', {
       contentType: 'image/png',
     });
     const downloadURL = await getDownloadURL(uploadResult.ref);
