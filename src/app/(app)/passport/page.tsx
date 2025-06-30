@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, ReactNode } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -9,26 +9,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Computer, Smartphone, Home, BrainCircuit, FileText, User as UserIcon, Trash2, Coins } from 'lucide-react';
 import { federationConfig } from '@/config';
 import { useToast } from "@/hooks/use-toast";
-
-const initialPhysicalAssets = [
-  { id: '1', type: 'Bio', name: 'My Body', value: '1,000,000 USD', icon: <UserIcon className="h-4 w-4" /> },
-  { id: '2', type: 'Real Estate', name: 'Apartment', value: '250,000 USD', icon: <Home className="h-4 w-4" /> },
-  { id: '3', type: 'Electronics', name: 'Computer', value: '2,500 USD', icon: <Computer className="h-4 w-4" /> },
-  { id: '4', type: 'Electronics', name: 'Phone', value: '1,200 USD', icon: <Smartphone className="h-4 w-4" /> },
-];
-
-const initialIpTokens = [
-    { id: '1', name: 'TeoVerse Concept', value: '500,000 USD', icon: <BrainCircuit className="h-4 w-4" /> },
-    { id: '2', name: 'Personal Manifesto', value: '10,000 USD', icon: <FileText className="h-4 w-4" /> },
-];
+import { useAuth } from '@/hooks/use-auth';
+import { Skeleton } from '@/components/ui/skeleton';
+import { createPassport, getPassport, updatePassport, mintTeos, type Passport, type IpToken } from '@/services/passport-service';
 
 const assetFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -48,17 +38,32 @@ const mintFormSchema = z.object({
 type MintFormValues = z.infer<typeof mintFormSchema>;
 
 export default function PassportPage() {
-  const [hasPassport, setHasPassport] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const [passport, setPassport] = useState<Passport | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isMinting, setIsMinting] = useState(false);
-  const [physicalAssets, setPhysicalAssets] = useState(initialPhysicalAssets);
-  const [ipTokens, setIpTokens] = useState(initialIpTokens);
   
   const [isAddAssetDialogOpen, setIsAddAssetDialogOpen] = useState(false);
   const [assetTypeToAdd, setAssetTypeToAdd] = useState<'physical' | 'ip' | null>(null);
   const [assetToDelete, setAssetToDelete] = useState<{ id: string; name: string; type: 'physical' | 'ip' } | null>(null);
   
-  const { toast } = useToast();
-  
+  useEffect(() => {
+    if (user) {
+      setIsLoading(true);
+      getPassport(user.uid)
+        .then(setPassport)
+        .catch(error => {
+          console.error("Failed to fetch passport:", error);
+          toast({ title: "Error", description: "Could not fetch passport data.", variant: "destructive" });
+        })
+        .finally(() => setIsLoading(false));
+    } else if (user === null) {
+      setIsLoading(false);
+    }
+  }, [user, toast]);
+
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),
     defaultValues: { name: "", type: "", value: "" },
@@ -69,22 +74,32 @@ export default function PassportPage() {
     defaultValues: { amount: "" },
   });
 
-  const handleMintPassport = () => {
+  const handleMintPassport = async () => {
+    if (!user) return;
     setIsMinting(true);
     toast({
         title: "Minting Passport...",
         description: "Your sovereign identity is being created on the federation.",
     });
 
-    setTimeout(() => {
-        setIsMinting(false);
-        setHasPassport(true);
-        toast({
-            title: "Passport Minted!",
-            description: "Congratulations! You are now a citizen of the federation.",
-            variant: "default"
-        });
-    }, 2000);
+    try {
+      const newPassport = await createPassport(user, federationConfig.federationURL);
+      setPassport(newPassport);
+      toast({
+          title: "Passport Minted!",
+          description: "Congratulations! You are now a citizen of the federation.",
+      });
+    } catch (error) {
+      console.error("Failed to mint passport:", error);
+      const errorMessage = error instanceof Error ? error.message : "There was an error creating your passport. Please try again.";
+      toast({
+          title: "Minting Failed",
+          description: errorMessage,
+          variant: "destructive",
+      });
+    } finally {
+      setIsMinting(false);
+    }
   };
   
   const getAssetIcon = (type: string): ReactNode => {
@@ -92,54 +107,114 @@ export default function PassportPage() {
         case 'bio': return <UserIcon className="h-4 w-4" />;
         case 'real estate': return <Home className="h-4 w-4" />;
         case 'electronics': return <Computer className="h-4 w-4" />;
+        case 'phone': return <Smartphone className="h-4 w-4" />;
         case 'teoverse concept': return <BrainCircuit className="h-4 w-4" />;
         default: return <FileText className="h-4 w-4" />;
     }
   };
 
-  const handleAddAsset = (values: AssetFormValues) => {
+  const handleAddAsset = async (values: AssetFormValues) => {
+    if (!user || !passport) return;
+
     const newAsset = {
         id: new Date().toISOString(),
         name: values.name,
         value: values.value,
         type: values.type || '',
-        icon: getAssetIcon(values.type || values.name),
     };
 
-    if (assetTypeToAdd === 'physical') {
-        setPhysicalAssets(prev => [...prev, newAsset]);
+    try {
+      if (assetTypeToAdd === 'physical') {
+        const updatedAssets = [...(passport.physicalAssets || []), newAsset];
+        await updatePassport(user.uid, { physicalAssets: updatedAssets });
+        setPassport(prev => prev ? { ...prev, physicalAssets: updatedAssets } : null);
         toast({ title: "Physical Asset Added", description: `${values.name} has been added to your passport.` });
-    } else if (assetTypeToAdd === 'ip') {
-        setIpTokens(prev => [...prev, { ...newAsset, name: values.name, value: values.value, icon: getAssetIcon(values.name) }]);
+      } else if (assetTypeToAdd === 'ip') {
+        const updatedTokens = [...(passport.ipTokens || []), newAsset as IpToken];
+        await updatePassport(user.uid, { ipTokens: updatedTokens });
+        setPassport(prev => prev ? { ...prev, ipTokens: updatedTokens } : null);
         toast({ title: "IP Token Minted", description: `Token for ${values.name} has been minted.` });
+      }
+      setIsAddAssetDialogOpen(false);
+      form.reset();
+    } catch (error) {
+      console.error("Failed to add asset:", error);
+      toast({ title: "Error", description: "Failed to update passport.", variant: "destructive" });
     }
-    
-    setIsAddAssetDialogOpen(false);
-    form.reset();
   };
 
-  const confirmDelete = () => {
-    if (!assetToDelete) return;
+  const confirmDelete = async () => {
+    if (!assetToDelete || !user || !passport) return;
 
-    if (assetToDelete.type === 'physical') {
-        setPhysicalAssets(prev => prev.filter(asset => asset.id !== assetToDelete.id));
-        toast({ title: "Asset Removed", description: `${assetToDelete.name} has been removed.` });
-    } else if (assetToDelete.type === 'ip') {
-        setIpTokens(prev => prev.filter(token => token.id !== assetToDelete.id));
-        toast({ title: "Token Burned", description: `${assetToDelete.name} has been burned.` });
+    try {
+      if (assetToDelete.type === 'physical') {
+          const updatedAssets = passport.physicalAssets.filter(asset => asset.id !== assetToDelete.id);
+          await updatePassport(user.uid, { physicalAssets: updatedAssets });
+          setPassport(prev => prev ? { ...prev, physicalAssets: updatedAssets } : null);
+          toast({ title: "Asset Removed", description: `${assetToDelete.name} has been removed.` });
+      } else if (assetToDelete.type === 'ip') {
+          const updatedTokens = passport.ipTokens.filter(token => token.id !== assetToDelete.id);
+          await updatePassport(user.uid, { ipTokens: updatedTokens });
+          setPassport(prev => prev ? { ...prev, ipTokens: updatedTokens } : null);
+          toast({ title: "Token Burned", description: `${assetToDelete.name} has been burned.` });
+      }
+    } catch (error) {
+       console.error("Failed to delete asset:", error);
+       toast({ title: "Error", description: "Failed to update passport.", variant: "destructive" });
+    } finally {
+       setAssetToDelete(null);
     }
-    setAssetToDelete(null);
   };
 
-  const handleMintTeos = (values: MintFormValues) => {
-    toast({
-      title: 'Tokens Minted!',
-      description: `You have successfully minted ${values.amount} ${federationConfig.tokenSymbol}.`,
-    });
-    mintForm.reset();
+  const handleMintTeos = async (values: MintFormValues) => {
+    if (!user) return;
+    const amount = Number(values.amount);
+    try {
+      await mintTeos(user.uid, amount);
+      setPassport(prev => prev ? { ...prev, teoBalance: (prev.teoBalance || 0) + amount } : null);
+      toast({
+        title: 'Tokens Minted!',
+        description: `You have successfully minted ${values.amount} ${federationConfig.tokenSymbol}.`,
+      });
+      mintForm.reset();
+    } catch (error) {
+      console.error("Failed to mint TEOs:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to mint tokens.";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    }
   };
   
-  if (!hasPassport) {
+  if (isLoading) {
+    return (
+      <div className="space-y-8 animate-pulse">
+        <div>
+          <Skeleton className="h-10 w-1/2" />
+          <Skeleton className="h-4 w-3/4 mt-2" />
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-8 w-1/3" />
+            <Skeleton className="h-4 w-2/3 mt-2" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-4 max-w-sm">
+              <div className="flex-grow space-y-2">
+                <Skeleton className="h-4 w-1/4" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <Skeleton className="h-10 w-24" />
+            </div>
+          </CardContent>
+        </Card>
+        <div className="grid gap-8 lg:grid-cols-2">
+          <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (!passport) {
     return (
       <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
         <Card className="w-full max-w-md text-center">
@@ -214,10 +289,10 @@ export default function PassportPage() {
                           </TableRow>
                       </TableHeader>
                       <TableBody>
-                          {physicalAssets.map(asset => (
+                          {passport.physicalAssets.map(asset => (
                               <TableRow key={asset.id}>
                                   <TableCell className="font-medium flex items-center gap-2">
-                                      {asset.icon} {asset.name} <Badge variant="outline">{asset.type}</Badge>
+                                      {getAssetIcon(asset.type || asset.name)} {asset.name} <Badge variant="outline">{asset.type}</Badge>
                                   </TableCell>
                                   <TableCell>{asset.value}</TableCell>
                                   <TableCell className="text-right">
@@ -248,9 +323,9 @@ export default function PassportPage() {
                           </TableRow>
                       </TableHeader>
                       <TableBody>
-                          {ipTokens.map(token => (
+                          {passport.ipTokens.map(token => (
                               <TableRow key={token.id}>
-                                  <TableCell className="font-medium flex items-center gap-2">{token.icon}{token.name}</TableCell>
+                                  <TableCell className="font-medium flex items-center gap-2">{getAssetIcon(token.name)}{token.name}</TableCell>
                                   <TableCell>{token.value}</TableCell>
                                   <TableCell className="text-right">
                                     <Button variant="ghost" size="icon" onClick={() => setAssetToDelete({ id: token.id, name: token.name, type: 'ip' })}>
