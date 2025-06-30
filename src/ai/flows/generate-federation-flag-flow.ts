@@ -12,7 +12,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { setFederationFlagUrl } from '@/services/federation-service';
 import { storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { createHash } from 'crypto';
 
 const GenerateFederationFlagInputSchema = z.object({
@@ -65,9 +65,8 @@ const generateFederationFlagFlow = ai.defineFlow(
     const storageRef = ref(storage, `federation_flags/${hash}.png`);
     const base64Data = dataUri.substring(dataUri.indexOf(',') + 1);
     
-    // Using uploadBytes with a Buffer is more robust in server environments.
-    const imageBuffer = Buffer.from(base64Data, 'base64');
-    const uploadResult = await uploadBytes(storageRef, imageBuffer, {
+    // Using uploadString is more direct for base64 data.
+    const uploadResult = await uploadString(storageRef, base64Data, 'base64', {
       contentType: 'image/png',
     });
     const downloadURL = await getDownloadURL(uploadResult.ref);
