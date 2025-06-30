@@ -31,11 +31,13 @@ export default function DashboardPage() {
     }
   }, [user]);
   
+  const MOCK_RATE = 10000; // From DEX page: 1 BTC = 10000 TEO
   const teoBalance = passport?.teoBalance || 0;
+  const passportValueInBtc = teoBalance / MOCK_RATE;
   const totalAssets = (passport?.physicalAssets?.length || 0) + (passport?.ipTokens?.length || 0);
   
   const stats = [
-    { title: 'Passport Value', value: '1.25 BTC', icon: CreditCard, description: 'Total value of all assets (mock)' },
+    { title: 'Passport Value', value: `${passportValueInBtc.toFixed(4)} BTC`, icon: CreditCard, description: `Based on your ${federationConfig.tokenSymbol} balance` },
     { title: 'BTC Balance', value: '0.05 BTC', icon: Landmark, description: 'Liquid balance in your wallet (mock)' },
     { title: `${federationConfig.tokenSymbol} Balance`, value: `${teoBalance.toLocaleString()} ${federationConfig.tokenSymbol}`, icon: PiggyBank, description: 'Your federation currency' },
     { title: 'Federation Members', value: '1', icon: Users, description: 'Total passports in this federation (mock)' },
