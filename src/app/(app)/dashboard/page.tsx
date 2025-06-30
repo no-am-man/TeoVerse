@@ -111,7 +111,7 @@ export default function DashboardPage() {
                     <div className="flex-1">
                       <p className="text-sm font-medium leading-none">{item.description}</p>
                       <p className="text-sm text-muted-foreground">
-                        {item.createdAt ? formatDistanceToNow(item.createdAt.toDate(), { addSuffix: true }) : 'Just now'}
+                        {item.createdAt ? formatDistanceToNow(new Date((item.createdAt as any).seconds * 1000), { addSuffix: true }) : 'Just now'}
                       </p>
                     </div>
                   </div>
