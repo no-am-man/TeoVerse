@@ -12,9 +12,12 @@ try {
     });
   }
 } catch (error: any) {
-  // In a development environment with hot-reloading, the app may already exist.
+  // If the app already exists, that's fine. Any other error is a critical failure.
   if (!/already exists/u.test(error.message)) {
-    console.error('Firebase admin initialization error', error.stack);
+    // Re-throwing the original error will give a much more informative stack trace
+    // than the subsequent "app does not exist" error.
+    console.error('CRITICAL: Firebase admin initialization failed.', error);
+    throw error;
   }
 }
 
