@@ -21,7 +21,7 @@ export default function DashboardPage() {
   const [memberCount, setMemberCount] = useState(0);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [federationFlagUrl, setFederationFlagUrl] = useState<string | null>(null);
+  const [capitalStateFlagUrl, setCapitalStateFlagUrl] = useState<string | null>(null);
   const [isGeneratingFlag, setIsGeneratingFlag] = useState(false);
 
   useEffect(() => {
@@ -66,17 +66,17 @@ export default function DashboardPage() {
           };
 
           const passportDigest = createPassportDigest(passport);
-          const prompt = `Generate a futuristic, cyberpunk-style flag for a digital federation. The flag should visually represent a unique digital identity. The identity data used to generate the flag is: ${passportDigest}. The design should be intricate and unique, incorporating the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a dark background. It should look like a national flag for a digital sovereign state.`;
+          const prompt = `Generate a futuristic, cyberpunk-style flag for a Capital State within a digital federation. The flag should visually represent a unique digital identity. The identity data used to generate the flag is: ${passportDigest}. The design should be intricate and unique, incorporating the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a dark background. It should look like a national flag for a digital sovereign state.`;
 
           const response = await geny({
             prompt: prompt,
             imageSize: { width: 400, height: 400 }
           });
 
-          setFederationFlagUrl(response.url);
+          setCapitalStateFlagUrl(response.url);
         } catch (error) {
-          console.error("Failed to generate federation flag:", error);
-          toast({ title: "Flag Error", description: "Could not generate your Federation Flag.", variant: "destructive" });
+          console.error("Failed to generate Capital State flag:", error);
+          toast({ title: "Flag Error", description: "Could not generate your Capital State Flag.", variant: "destructive" });
         } finally {
           setIsGeneratingFlag(false);
         }
@@ -169,20 +169,20 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Federation Flag</CardTitle>
-            <CardDescription>A unique flag for your federation, regenerated on any passport change.</CardDescription>
+            <CardTitle>Capital State Flag</CardTitle>
+            <CardDescription>A unique flag for your Capital State, regenerated on any passport change.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center gap-4 pt-4">
              {isGeneratingFlag ? (
                 <Skeleton className="h-48 w-48 rounded-lg" />
-            ) : federationFlagUrl ? (
+            ) : capitalStateFlagUrl ? (
                 <Image
-                    src={federationFlagUrl}
-                    alt="Your Federation Flag"
+                    src={capitalStateFlagUrl}
+                    alt="Your Capital State Flag"
                     width={192}
                     height={192}
                     className="rounded-lg border-2 border-primary/50 shadow-lg"
-                    data-ai-hint="federation flag"
+                    data-ai-hint="capital state flag"
                 />
             ) : (
                 <div className="flex h-48 w-48 items-center justify-center rounded-lg border-2 border-dashed">
