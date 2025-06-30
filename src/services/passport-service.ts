@@ -1,6 +1,8 @@
 import { db } from '@/lib/firebase';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp, runTransaction, collection, getDocs } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
+import { addActivityLog } from './activity-log-service';
+import { federationConfig } from '@/config';
 
 export interface PhysicalAsset {
   id: string;
@@ -82,6 +84,8 @@ export const mintTeos = async (userId: string, amount: number): Promise<void> =>
         const newBalance = currentBalance + amount;
         transaction.update(passportRef, { teoBalance: newBalance });
     });
+
+    await addActivityLog(userId, 'MINT_TEO', `Minted ${amount.toLocaleString()} ${federationConfig.tokenSymbol}`);
 };
 
 export const getFederationMemberCount = async (): Promise<number> => {

@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import { createPassport, getPassport, updatePassport, mintTeos, type Passport, type IpToken } from '@/services/passport-service';
+import { addActivityLog } from '@/services/activity-log-service';
 
 const assetFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -128,11 +129,13 @@ export default function PassportPage() {
         const updatedAssets = [...(passport.physicalAssets || []), newAsset];
         await updatePassport(user.uid, { physicalAssets: updatedAssets });
         setPassport(prev => prev ? { ...prev, physicalAssets: updatedAssets } : null);
+        await addActivityLog(user.uid, 'ADD_PHYSICAL_ASSET', `Added physical asset: ${values.name}`);
         toast({ title: "Physical Asset Added", description: `${values.name} has been added to your passport.` });
       } else if (assetTypeToAdd === 'ip') {
         const updatedTokens = [...(passport.ipTokens || []), newAsset as IpToken];
         await updatePassport(user.uid, { ipTokens: updatedTokens });
         setPassport(prev => prev ? { ...prev, ipTokens: updatedTokens } : null);
+        await addActivityLog(user.uid, 'MINT_IP_TOKEN', `Minted IP token: ${values.name}`);
         toast({ title: "IP Token Minted", description: `Token for ${values.name} has been minted.` });
       }
       setIsAddAssetDialogOpen(false);
@@ -151,11 +154,13 @@ export default function PassportPage() {
           const updatedAssets = passport.physicalAssets.filter(asset => asset.id !== assetToDelete.id);
           await updatePassport(user.uid, { physicalAssets: updatedAssets });
           setPassport(prev => prev ? { ...prev, physicalAssets: updatedAssets } : null);
+          await addActivityLog(user.uid, 'REMOVE_PHYSICAL_ASSET', `Removed physical asset: ${assetToDelete.name}`);
           toast({ title: "Asset Removed", description: `${assetToDelete.name} has been removed.` });
       } else if (assetToDelete.type === 'ip') {
           const updatedTokens = passport.ipTokens.filter(token => token.id !== assetToDelete.id);
           await updatePassport(user.uid, { ipTokens: updatedTokens });
           setPassport(prev => prev ? { ...prev, ipTokens: updatedTokens } : null);
+          await addActivityLog(user.uid, 'BURN_IP_TOKEN', `Burned IP token: ${assetToDelete.name}`);
           toast({ title: "Token Burned", description: `${assetToDelete.name} has been burned.` });
       }
     } catch (error) {

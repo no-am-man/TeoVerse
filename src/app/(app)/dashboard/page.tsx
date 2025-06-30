@@ -6,15 +6,18 @@ import { federationConfig } from '@/config';
 import { CreditCard, Landmark, PiggyBank, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getPassport, type Passport, getFederationMemberCount } from '@/services/passport-service';
+import { getRecentActivity, type ActivityLog } from '@/services/activity-log-service';
 import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { formatDistanceToNow } from 'date-fns';
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [passport, setPassport] = useState<Passport | null>(null);
   const [memberCount, setMemberCount] = useState(0);
+  const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,9 +25,11 @@ export default function DashboardPage() {
       Promise.all([
         getPassport(user.uid),
         getFederationMemberCount(),
-      ]).then(([p, count]) => {
+        getRecentActivity(user.uid),
+      ]).then(([p, count, act]) => {
         setPassport(p);
         setMemberCount(count);
+        setActivity(act);
       }).catch(error => {
         console.error("Failed to fetch dashboard data:", error);
         toast({ title: "Error", description: "Could not fetch dashboard data.", variant: "destructive" });
@@ -99,8 +104,22 @@ export default function DashboardPage() {
             <CardDescription>A log of your recent transactions and mints.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">No recent activity.</p>
-            {/* Activity feed will go here */}
+             {activity.length > 0 ? (
+              <div className="space-y-4">
+                {activity.map((item) => (
+                  <div key={item.id} className="flex items-center">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium leading-none">{item.description}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {item.createdAt ? formatDistanceToNow(item.createdAt.toDate(), { addSuffix: true }) : 'Just now'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground">No recent activity.</p>
+            )}
           </CardContent>
         </Card>
         <Card>
