@@ -11,6 +11,8 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { createHash } from 'crypto';
 import { getCachedImage, cacheImage } from '@/services/geny-service';
+import { storage } from '@/lib/firebase';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 
 const GenyInputSchema = z.object({
   prompt: z.string().describe('The text prompt to generate an image from.'),
@@ -76,12 +78,22 @@ const genyFlow = ai.defineFlow(
         'Image generation failed to return a valid media object.'
       );
     }
-    const imageUrl = media.url;
+    const dataUri = media.url;
 
-    // 4. Upload to a bucket (simulated by caching the data URI) and save the hash/URL pair.
-    await cacheImage(hash, imageUrl);
+    // 4. Upload to Firebase Storage to get a public URL.
+    const storageRef = ref(storage, `generated_images/${hash}.png`);
+    // The data URI is in the format `data:mime/type;base64,DATA`. We need to extract just the DATA part.
+    const base64Data = dataUri.substring(dataUri.indexOf(',') + 1);
+    
+    const uploadResult = await uploadString(storageRef, base64Data, 'base64', {
+      contentType: 'image/png',
+    });
+    const downloadURL = await getDownloadURL(uploadResult.ref);
 
-    // 5. Return the URL to the new resource.
-    return { url: imageUrl };
+    // 5. Cache the public Storage URL in Firestore.
+    await cacheImage(hash, downloadURL);
+
+    // 6. Return the URL to the new resource.
+    return { url: downloadURL };
   }
 );
