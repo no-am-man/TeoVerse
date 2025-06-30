@@ -12,7 +12,15 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { createHash } from 'crypto';
 import { getCachedImage, cacheImage } from '@/services/geny-service';
-import { adminStorage } from '@/lib/firebase-admin';
+import * as admin from 'firebase-admin';
+
+// Initialize Firebase Admin SDK directly in this flow.
+// This is a workaround for a suspected module loading issue in the environment
+// that causes initialization to fail when it's in a shared module.
+if (!admin.apps.length) {
+  // In a managed environment, this call should automatically discover credentials.
+  admin.initializeApp();
+}
 
 const GenyInputSchema = z.object({
   prompt: z.string().describe('The text prompt to generate an image from.'),
@@ -62,6 +70,7 @@ const genyFlow = ai.defineFlow(
     }
 
     console.log('No cache hit. Generating new image for hash:', hash);
+    const adminStorage = admin.storage();
 
     // 3. If not cached, generate a new image.
     const { media } = await ai.generate({

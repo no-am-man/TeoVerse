@@ -10,7 +10,15 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { adminStorage, adminRtdb } from '@/lib/firebase-admin';
+import * as admin from 'firebase-admin';
+
+// Initialize Firebase Admin SDK directly in this flow.
+// This is a workaround for a suspected module loading issue in the environment
+// that causes initialization to fail when it's in a shared module.
+if (!admin.apps.length) {
+  // In a managed environment, this call should automatically discover credentials.
+  admin.initializeApp();
+}
 
 const GenerateFederationFlagInputSchema = z.object({
   prompt: z.string().describe('The detailed text prompt to generate the flag from.'),
@@ -35,6 +43,8 @@ const generateFederationFlagFlow = ai.defineFlow(
   },
   async (input) => {
     console.log('Generating new Federation Flag image data using Admin SDK.');
+    const adminStorage = admin.storage();
+    const adminRtdb = admin.database();
 
     // 1. Generate a new image from the prompt.
     const { media } = await ai.generate({
