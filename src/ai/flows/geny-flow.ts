@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An image generation and caching service called Geny.
@@ -11,7 +10,6 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { createHash } from 'crypto';
-import { getCachedImage, cacheImage } from '@/services/geny-service';
 import * as admin from 'firebase-admin';
 
 const GenyInputSchema = z.object({
@@ -50,25 +48,29 @@ const genyFlow = ai.defineFlow(
     outputSchema: GenyOutputSchema,
   },
   async (input) => {
-    // Initialize Firebase Admin SDK if not already initialized. This is deferred
-    // until the flow is running to avoid module-level side effects.
+    // Initialize Firebase Admin SDK if not already initialized.
     if (!admin.apps.length) {
       admin.initializeApp();
     }
+    const adminDb = admin.firestore();
 
     // 1. Hash the payload to create a unique key for caching.
-    const payloadString = JSON.stringify(input);
+    // The 'salt' property is intentionally excluded from the hash.
+    const { salt, ...cacheablePayload } = input;
+    const payloadString = JSON.stringify(cacheablePayload);
     const hash = createHash('sha256').update(payloadString).digest('hex');
+    const docRef = adminDb.collection('generated_images').doc(hash);
 
-    // 2. Check the database for a cached result.
-    const cachedUrl = await getCachedImage(hash);
-    if (cachedUrl) {
-      console.log('Returning cached image for hash:', hash);
-      return { url: cachedUrl };
+    // 2. Check the database for a cached result if not bypassing.
+    if (!salt) {
+      const docSnap = await docRef.get();
+      if (docSnap.exists) {
+        console.log('Returning cached image for hash:', hash);
+        return { url: docSnap.data()!.url };
+      }
     }
 
-    console.log('No cache hit. Generating new image for hash:', hash);
-    const adminStorage = admin.storage();
+    console.log('No cache hit or cache bypassed. Generating new image for hash:', hash);
 
     // 3. If not cached, generate a new image.
     const { media } = await ai.generate({
@@ -87,6 +89,7 @@ const genyFlow = ai.defineFlow(
     const dataUri = media.url;
     
     // 4. Upload to Firebase Storage using the Admin SDK
+    const adminStorage = admin.storage();
     const bucket = adminStorage.bucket();
     const filePath = `generated_images/${hash}.png`;
     const file = bucket.file(filePath);
@@ -109,7 +112,10 @@ const genyFlow = ai.defineFlow(
     const downloadURL = file.publicUrl();
 
     // 5. Cache the public Storage URL in Firestore.
-    await cacheImage(hash, downloadURL);
+    await docRef.set({
+      url: downloadURL,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
     // 6. Return the URL to the new resource.
     return { url: downloadURL };
