@@ -1,16 +1,18 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { generateDocumentation } from '@/ai/flows/generate-documentation-flow';
+import { generateDocumentation, type GenerateDocumentationOutput } from '@/ai/flows/generate-documentation-flow';
+import { fetchAvailableDocs } from './actions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BookText, Sparkles } from 'lucide-react';
+import { federationConfig } from '@/config';
 
 const documentationTopics = [
   { value: 'Passport Management & Asset Tokenization', label: 'Passport & Asset Tokenization' },
@@ -22,13 +24,36 @@ const documentationTopics = [
 
 export default function DocumentationPage() {
   const { toast } = useToast();
-  const [topic, setTopic] = useState<string>('');
-  const [article, setArticle] = useState<string>('');
-  const [imageUrl, setImageUrl] = useState<string>('');
+  const [selectedTopic, setSelectedTopic] = useState<string>('');
+  const [displayedArticle, setDisplayedArticle] = useState<GenerateDocumentationOutput | null>(null);
+  const [cachedDocs, setCachedDocs] = useState<Record<string, GenerateDocumentationOutput>>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isCacheLoading, setIsCacheLoading] = useState<boolean>(true);
+
+  // Fetch all cached documents on initial load
+  useEffect(() => {
+    setIsCacheLoading(true);
+    fetchAvailableDocs()
+      .then(setCachedDocs)
+      .catch(error => {
+        console.error("Failed to load cached docs:", error);
+        toast({ title: "Error", description: "Could not load cached documentation.", variant: "destructive" });
+      })
+      .finally(() => setIsCacheLoading(false));
+  }, []);
+  
+  // Handle topic selection from the dropdown
+  const handleTopicChange = (topic: string) => {
+    setSelectedTopic(topic);
+    if (cachedDocs[topic]) {
+      setDisplayedArticle(cachedDocs[topic]);
+    } else {
+      setDisplayedArticle(null);
+    }
+  };
 
   const handleGenerate = async () => {
-    if (!topic) {
+    if (!selectedTopic) {
       toast({
         title: 'Select a Topic',
         description: 'Please choose a topic to generate documentation for.',
@@ -38,13 +63,13 @@ export default function DocumentationPage() {
     }
 
     setIsLoading(true);
-    setArticle('');
-    setImageUrl('');
+    setDisplayedArticle(null);
 
     try {
-      const result = await generateDocumentation({ topic });
-      setArticle(result.article);
-      setImageUrl(result.imageUrl);
+      const result = await generateDocumentation({ topic: selectedTopic });
+      setDisplayedArticle(result);
+      // Add the new result to the cache so the UI updates
+      setCachedDocs(prev => ({ ...prev, [selectedTopic]: result }));
     } catch (error) {
       console.error("Documentation generation failed:", error);
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
@@ -80,17 +105,19 @@ export default function DocumentationPage() {
   const InitialState = () => (
     <div className="text-center text-muted-foreground py-12">
         <BookText className="mx-auto h-12 w-12" />
-        <h3 className="mt-4 text-lg font-medium">Live Documentation</h3>
-        <p className="mt-1">Select a topic and let the AI generate a technical overview with a header image.</p>
+        <h3 className="mt-4 text-lg font-medium">Live Documentation (v{federationConfig.version})</h3>
+        <p className="mt-1">Select a topic to view its documentation. If it hasn't been generated for this version yet, you can generate it.</p>
     </div>
   );
+
+  const isArticleCached = selectedTopic && !!cachedDocs[selectedTopic];
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-headline font-bold">AI Documentation</h1>
         <p className="text-muted-foreground">
-          Generate live technical documentation for the project's features using AI.
+          Generate or view live technical documentation for the project's features using AI. Articles are cached per version.
         </p>
       </div>
 
@@ -98,46 +125,47 @@ export default function DocumentationPage() {
         <CardHeader>
           <CardTitle>Documentation Generator</CardTitle>
           <CardDescription>
-            Select a feature to generate an article explaining its implementation.
+            Select a feature to view or generate an article explaining its implementation.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex items-end gap-4">
           <div className="flex-grow">
-            <Select onValueChange={setTopic} value={topic}>
+            <Select onValueChange={handleTopicChange} value={selectedTopic} disabled={isCacheLoading}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a topic..." />
+                <SelectValue placeholder={isCacheLoading ? "Loading cached docs..." : "Select a topic..."} />
               </SelectTrigger>
               <SelectContent>
                 {documentationTopics.map((docTopic) => (
                   <SelectItem key={docTopic.value} value={docTopic.value}>
-                    {docTopic.label}
+                    {docTopic.label} {cachedDocs[docTopic.value] ? '(Cached)' : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleGenerate} disabled={isLoading || !topic}>
+          <Button onClick={handleGenerate} disabled={isLoading || !selectedTopic || isArticleCached}>
             <Sparkles className="mr-2 h-4 w-4" />
-            {isLoading ? 'Generating...' : 'Generate'}
+            {isLoading ? 'Generating...' : isArticleCached ? 'Cached' : 'Generate'}
           </Button>
         </CardContent>
       </Card>
 
       <Card>
-        <CardContent className="p-6">
-            {isLoading ? <LoadingState /> : article ? (
+        <CardContent className="p-6 min-h-[300px]">
+            {isLoading ? <LoadingState /> : displayedArticle ? (
                 <article className="prose dark:prose-invert max-w-none">
-                    {imageUrl && (
+                    {displayedArticle.imageUrl && (
                         <Image
-                            src={imageUrl}
-                            alt={`Generated image for ${topic}`}
+                            src={displayedArticle.imageUrl}
+                            alt={`Generated image for ${selectedTopic}`}
                             width={1200}
                             height={600}
                             className="w-full aspect-video object-cover rounded-lg mb-8"
                             data-ai-hint="documentation abstract"
+                            unoptimized
                         />
                     )}
-                    <ReactMarkdown>{article}</ReactMarkdown>
+                    <ReactMarkdown>{displayedArticle.article}</ReactMarkdown>
                 </article>
             ) : (
                 <InitialState />

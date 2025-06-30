@@ -13,6 +13,8 @@ import { z } from 'genkit';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { geny } from './geny-flow';
+import { getDocumentation, setDocumentation } from '@/services/documentation-service';
+import { federationConfig } from '@/config';
 
 // Zod Schemas for input and output
 const GenerateDocumentationInputSchema = z.object({
@@ -70,12 +72,24 @@ const generateDocumentationFlow = ai.defineFlow(
     outputSchema: GenerateDocumentationOutputSchema,
   },
   async (input) => {
-    console.log(`Generating new documentation for topic: "${input.topic}".`);
+    const { topic } = input;
+    const { version } = federationConfig;
+
+    console.log(`Request for documentation topic: "${topic}" (v${version}).`);
+
+    // Check for a cached version first.
+    const cachedDoc = await getDocumentation(topic, version);
+    if (cachedDoc) {
+      console.log('Returning cached documentation.');
+      return cachedDoc;
+    }
+    
+    console.log(`Generating new documentation for topic: "${topic}".`);
 
     // Generate article and image in parallel.
     const [llmResponse, imageResponse] = await Promise.all([
       ai.generate({
-        prompt: `Write a technical documentation article about the following TeoVerse feature: "${input.topic}"`,
+        prompt: `Write a technical documentation article about the following TeoVerse feature: "${topic}"`,
         model: 'googleai/gemini-2.0-flash',
         tools: [getFileContentTool],
         system: `You are an expert technical writer for the TeoVerse project. Your task is to write a clear, concise, and professional documentation article about a specific feature.
@@ -92,9 +106,8 @@ Once you have the context from the source code, write a markdown article explain
 - The article should be about the feature, not about how to use the documentation generation tool itself.`,
       }),
       geny({
-        prompt: `A futuristic, abstract, cyberpunk-style technical illustration representing the concept of "${input.topic}". Use a dark theme with vibrant orange (#f56502) and green (#15b56d) highlights.`,
-        // Pass a salt to geny to ensure a unique image is generated for each documentation request.
-        salt: new Date().toISOString(),
+        prompt: `A futuristic, abstract, cyberpunk-style technical illustration representing the concept of "${topic}". Use a dark theme with vibrant orange (#f56502) and green (#15b56d) highlights.`,
+        salt: new Date().toISOString(), // Salt to ensure unique image even if topic is the same
       })
     ]);
     
@@ -107,8 +120,11 @@ Once you have the context from the source code, write a markdown article explain
         throw new Error("The Geny service did not return an image data URI.");
     }
     
-    // The result now contains the article text and the image data URI.
     const result = { article, imageUrl: imageResponse.dataUri };
+
+    // Cache the newly generated result.
+    await setDocumentation(topic, version, result);
+    console.log(`Cached new documentation for topic: "${topic}".`);
 
     return result;
   }
