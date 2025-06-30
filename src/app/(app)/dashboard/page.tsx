@@ -7,7 +7,7 @@ import { CreditCard, Landmark, PiggyBank, Flag, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getPassport, type Passport, getFederationMemberCount } from '@/services/passport-service';
 import { getRecentActivity, type ActivityLog } from '@/services/activity-log-service';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -27,6 +27,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [federationFlagUrl, setFederationFlagUrl] = useState<string | null>(null);
   const [isGeneratingFlag, setIsGeneratingFlag] = useState(false);
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
     if (user) {
@@ -70,7 +71,7 @@ export default function DashboardPage() {
     }
   }, [passport]);
 
-  // Listen for flag updates from Realtime Database
+  // Listen for flag updates from Realtime Database. This keeps all clients in sync.
   useEffect(() => {
     const flagUrlRef = ref(rtdb, 'federation/flagUrl');
     
@@ -83,13 +84,19 @@ export default function DashboardPage() {
     return () => off(flagUrlRef, 'value', unsubscribe);
   }, []);
 
-  // Generate flag when passport digest changes
+  // Generate flag automatically when passport digest changes, but not on initial load.
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
     if (passportDigest) {
       const generateFlag = async () => {
         try {
           const prompt = `Generate a futuristic, cyberpunk-style flag for the ${federationConfig.federationName} federation. The flag's design is derived from the Capital State's passport, representing the core identity of the federation. The identity data used to generate the flag is: ${passportDigest}. The design should be intricate and unique, incorporating the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a dark background. It should look like a national flag for a digital sovereign state.`;
-          await generateFederationFlag({ prompt });
+          const result = await generateFederationFlag({ prompt });
+          setFederationFlagUrl(result.url); // Set local state for a fast, silent update
         } catch (error) {
           console.error("Failed to automatically update Federation flag:", error);
         }
@@ -106,10 +113,11 @@ export default function DashboardPage() {
     try {
       const prompt = `Generate a futuristic, cyberpunk-style flag for the ${federationConfig.federationName} federation. The flag's design is derived from the Capital State's passport, representing the core identity of the federation. The identity data used to generate the flag is: ${passportDigest}. The design should be intricate and unique, incorporating the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a dark background. It should look like a national flag for a digital sovereign state.`;
 
-      await generateFederationFlag({
+      const result = await generateFederationFlag({
         prompt: prompt,
         salt: Math.random().toString(),
       });
+      setFederationFlagUrl(result.url); // Set local state for an immediate update
     } catch (error) {
       console.error("Failed to regenerate Federation flag:", error);
       toast({ title: "Flag Error", description: "Could not regenerate the Federation Flag.", variant: "destructive" });
