@@ -29,7 +29,7 @@ export default function DashboardPage() {
     } else if (user === null) {
       setLoading(false);
     }
-  }, [user, toast]);
+  }, [user]);
   
   const teoBalance = passport?.teoBalance || 0;
   const totalAssets = (passport?.physicalAssets?.length || 0) + (passport?.ipTokens?.length || 0);
