@@ -9,8 +9,16 @@
  */
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getPassport } from '@/services/passport-service';
 import { federationConfig } from '@/config';
+import * as admin from 'firebase-admin';
+
+// Initialize Firebase Admin SDK if not already initialized.
+// This is necessary for server-side flows to securely access Firestore.
+if (!admin.apps.length) {
+  // In a managed environment, this call should automatically discover credentials.
+  admin.initializeApp();
+}
+const adminDb = admin.firestore();
 
 // Schema for the public data we will expose via the tool.
 const PublicFederationDataSchema = z.object({
@@ -34,14 +42,19 @@ const getFederationDataTool = ai.defineTool(
     outputSchema: PublicFederationDataSchema,
   },
   async ({ userId }) => {
-    const passport = await getPassport(userId);
-    if (!passport) {
+    // Use the Firebase Admin SDK to fetch passport data directly.
+    const passportRef = adminDb.collection('passports').doc(userId);
+    const passportSnap = await passportRef.get();
+
+    if (!passportSnap.exists) {
       throw new Error('Federation not found for the given user ID.');
     }
+    const passportData = passportSnap.data();
+
     return {
       federationName: federationConfig.federationName,
       tokenSymbol: federationConfig.tokenSymbol,
-      ipTokens: passport.ipTokens,
+      ipTokens: passportData?.ipTokens || [],
     };
   }
 );
