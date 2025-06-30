@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Computer, Smartphone, Home, BrainCircuit, FileText, User as UserIcon, Trash2 } from 'lucide-react';
+import { Computer, Smartphone, Home, BrainCircuit, FileText, User as UserIcon, Trash2, Coins } from 'lucide-react';
 import { federationConfig } from '@/config';
 import { useToast } from "@/hooks/use-toast";
 
@@ -38,6 +38,15 @@ const assetFormSchema = z.object({
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
 
+const mintFormSchema = z.object({
+  amount: z.string().min(1, { message: "Please enter an amount." }).refine(
+    (val) => Number(val) > 0,
+    { message: "Amount must be a positive number." }
+  ),
+});
+
+type MintFormValues = z.infer<typeof mintFormSchema>;
+
 export default function PassportPage() {
   const [hasPassport, setHasPassport] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
@@ -49,9 +58,15 @@ export default function PassportPage() {
   const [assetToDelete, setAssetToDelete] = useState<{ id: string; name: string; type: 'physical' | 'ip' } | null>(null);
   
   const { toast } = useToast();
+  
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),
     defaultValues: { name: "", type: "", value: "" },
+  });
+
+  const mintForm = useForm<MintFormValues>({
+    resolver: zodResolver(mintFormSchema),
+    defaultValues: { amount: "" },
   });
 
   const handleMintPassport = () => {
@@ -115,6 +130,14 @@ export default function PassportPage() {
     }
     setAssetToDelete(null);
   };
+
+  const handleMintTeos = (values: MintFormValues) => {
+    toast({
+      title: 'Tokens Minted!',
+      description: `You have successfully minted ${values.amount} ${federationConfig.tokenSymbol}.`,
+    });
+    mintForm.reset();
+  };
   
   if (!hasPassport) {
     return (
@@ -143,6 +166,37 @@ export default function PassportPage() {
           <h1 className="text-3xl font-headline font-bold">My Passport</h1>
           <p className="text-muted-foreground">Your sovereign identity and asset portfolio.</p>
         </div>
+
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Coins className="h-6 w-6" /> Mint {federationConfig.tokenSymbol} Tokens
+                </CardTitle>
+                <CardDescription>
+                    Create new federation currency. Your balance is reflected on the dashboard.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Form {...mintForm}>
+                    <form onSubmit={mintForm.handleSubmit(handleMintTeos)} className="flex items-end gap-4 max-w-sm">
+                        <FormField
+                            control={mintForm.control}
+                            name="amount"
+                            render={({ field }) => (
+                                <FormItem className="flex-grow">
+                                    <FormLabel htmlFor="amount">Amount</FormLabel>
+                                    <FormControl>
+                                        <Input id="amount" type="number" placeholder="e.g. 1000" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <Button type="submit">Mint</Button>
+                    </form>
+                </Form>
+            </CardContent>
+        </Card>
         
         <div className="grid gap-8 lg:grid-cols-2">
           <Card>
@@ -294,5 +348,3 @@ export default function PassportPage() {
     </>
   );
 }
-
-    
