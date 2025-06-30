@@ -8,9 +8,10 @@ import { getApps } from 'firebase-admin/app';
 // environment variable to point to your service account key file.
 
 if (!getApps().length) {
-    admin.initializeApp({
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    });
+    // Calling initializeApp() with no arguments relies on the SDK to
+    // auto-discover credentials and configuration from the environment.
+    // This is the most reliable method for managed environments like App Hosting.
+    admin.initializeApp();
 }
 
 export const adminDb = admin.firestore();
