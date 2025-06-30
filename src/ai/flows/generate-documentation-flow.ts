@@ -12,6 +12,8 @@ import { z } from 'genkit';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { geny } from './geny-flow';
+import { createHash } from 'crypto';
+import { getCachedDocumentation, cacheDocumentation } from '@/services/documentation-cache-service';
 
 // Zod Schemas for input and output
 const GenerateDocumentationInputSchema = z.object({
@@ -69,7 +71,19 @@ const generateDocumentationFlow = ai.defineFlow(
     outputSchema: GenerateDocumentationOutputSchema,
   },
   async (input) => {
-    // Generate article and image in parallel to speed things up
+    // 1. Create a hash from the input topic to use as a cache key.
+    const hash = createHash('sha256').update(input.topic).digest('hex');
+
+    // 2. Check for a cached version of the documentation.
+    const cachedDoc = await getCachedDocumentation(hash);
+    if (cachedDoc) {
+      console.log(`Returning cached documentation for topic: "${input.topic}"`);
+      return cachedDoc;
+    }
+    
+    console.log(`No cache hit for topic: "${input.topic}". Generating new documentation.`);
+
+    // 3. Generate article and image in parallel if not cached.
     const [llmResponse, imageResponse] = await Promise.all([
       ai.generate({
         prompt: `Write a technical documentation article about the following TeoVerse feature: "${input.topic}"`,
@@ -103,7 +117,12 @@ Once you have the context from the source code, write a markdown article explain
         throw new Error("The Geny service did not return an image URL.");
     }
     
-    return { article, imageUrl: imageResponse.url };
+    const result = { article, imageUrl: imageResponse.url };
+
+    // 4. Cache the newly generated documentation before returning.
+    await cacheDocumentation(hash, result);
+
+    return result;
   }
 );
 
