@@ -22,6 +22,7 @@ const GenyInputSchema = z.object({
       height: z.number().int().positive(),
     })
     .describe('The desired dimensions for the image.'),
+  salt: z.string().optional().describe('An optional random string to bypass the cache and force regeneration.'),
 });
 export type GenyInput = z.infer<typeof GenyInputSchema>;
 

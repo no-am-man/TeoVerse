@@ -3,16 +3,17 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { federationConfig } from '@/config';
-import { CreditCard, Landmark, PiggyBank, Flag } from 'lucide-react';
+import { CreditCard, Landmark, PiggyBank, Flag, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getPassport, type Passport, getFederationMemberCount } from '@/services/passport-service';
 import { getRecentActivity, type ActivityLog } from '@/services/activity-log-service';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
-import { geny } from '@/ai/flows/geny-flow';
+import { geny, type GenyInput } from '@/ai/flows/geny-flow';
 import Image from 'next/image';
+import { Button } from '@/components/ui/button';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -45,26 +46,26 @@ export default function DashboardPage() {
     }
   }, [user, toast]);
 
+  const createPassportDigest = (p: Passport): string => {
+    const dataToHash = {
+      id: p.id,
+      email: p.email,
+      teoBalance: p.teoBalance,
+      physicalAssets: [...p.physicalAssets]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map(({ id, name, type, value }) => ({ id, name, type, value })),
+      ipTokens: [...p.ipTokens]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map(({ id, name, value }) => ({ id, name, value })),
+    };
+    return JSON.stringify(dataToHash);
+  };
+
   useEffect(() => {
     if (passport) {
       const generateFlag = async () => {
         setIsGeneratingFlag(true);
         try {
-          const createPassportDigest = (p: Passport): string => {
-            const dataToHash = {
-              id: p.id,
-              email: p.email,
-              teoBalance: p.teoBalance,
-              physicalAssets: [...p.physicalAssets]
-                .sort((a, b) => a.id.localeCompare(b.id))
-                .map(({ id, name, type, value }) => ({ id, name, type, value })),
-              ipTokens: [...p.ipTokens]
-                .sort((a, b) => a.id.localeCompare(b.id))
-                .map(({ id, name, value }) => ({ id, name, value })),
-            };
-            return JSON.stringify(dataToHash);
-          };
-
           const passportDigest = createPassportDigest(passport);
           const prompt = `Generate a futuristic, cyberpunk-style flag for the ${federationConfig.federationName} federation. The flag's design is derived from the Capital State's passport, representing the core identity of the federation. The identity data used to generate the flag is: ${passportDigest}. The design should be intricate and unique, incorporating the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a dark background. It should look like a national flag for a digital sovereign state.`;
 
@@ -85,6 +86,30 @@ export default function DashboardPage() {
     }
   }, [passport, toast]);
   
+  const regenerateFlag = useCallback(async () => {
+    if (!passport) return;
+
+    setIsGeneratingFlag(true);
+    toast({ title: "Regenerating Flag...", description: "A new flag is being forged for the federation." });
+    try {
+      const passportDigest = createPassportDigest(passport);
+      const prompt = `Generate a futuristic, cyberpunk-style flag for the ${federationConfig.federationName} federation. The flag's design is derived from the Capital State's passport, representing the core identity of the federation. The identity data used to generate the flag is: ${passportDigest}. The design should be intricate and unique, incorporating the app's theme colors: deep purple (#673AB7) and teal (#009688) as glowing elements against a dark background. It should look like a national flag for a digital sovereign state.`;
+
+      const response = await geny({
+        prompt: prompt,
+        imageSize: { width: 400, height: 400 },
+        salt: Math.random().toString(),
+      });
+
+      setFederationFlagUrl(response.url);
+    } catch (error) {
+      console.error("Failed to regenerate Federation flag:", error);
+      toast({ title: "Flag Error", description: "Could not regenerate the Federation Flag.", variant: "destructive" });
+    } finally {
+      setIsGeneratingFlag(false);
+    }
+  }, [passport, toast]);
+
   const MOCK_RATE = 10000; // From DEX page: 1 BTC = 10000 TEO
   const teoBalance = passport?.teoBalance || 0;
   const passportValueInBtc = teoBalance / MOCK_RATE;
@@ -168,9 +193,19 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>Federation Flag</CardTitle>
-            <CardDescription>The official flag of the {federationConfig.federationName} federation, generated from the Capital State's passport.</CardDescription>
+           <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Federation Flag</CardTitle>
+                <CardDescription>The official flag of the {federationConfig.federationName} federation, generated from the Capital State's passport.</CardDescription>
+              </div>
+              {federationFlagUrl && (
+                 <Button variant="outline" size="icon" onClick={regenerateFlag} disabled={isGeneratingFlag}>
+                    <RefreshCw className="h-4 w-4" />
+                    <span className="sr-only">Regenerate Flag</span>
+                 </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center gap-4 pt-4">
              {isGeneratingFlag ? (
