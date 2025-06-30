@@ -63,10 +63,9 @@ const generateFederationFlagFlow = ai.defineFlow(
 
     // 3. Upload to Firebase Storage to get a public URL.
     const storageRef = ref(storage, `federation_flags/${hash}.png`);
-    const base64Data = dataUri.substring(dataUri.indexOf(',') + 1);
     
-    // Using uploadString is more direct for base64 data.
-    const uploadResult = await uploadString(storageRef, base64Data, 'base64', {
+    // Use the 'data_url' format, which is the most robust way to upload a data URI.
+    const uploadResult = await uploadString(storageRef, dataUri, 'data_url', {
       contentType: 'image/png',
     });
     const downloadURL = await getDownloadURL(uploadResult.ref);

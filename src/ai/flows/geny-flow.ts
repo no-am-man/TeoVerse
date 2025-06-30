@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An image generation and caching service called Geny.
@@ -83,10 +84,9 @@ const genyFlow = ai.defineFlow(
 
     // 4. Upload to Firebase Storage to get a public URL.
     const storageRef = ref(storage, `generated_images/${hash}.png`);
-    // The data URI is in the format `data:mime/type;base64,DATA`. We need to extract just the DATA part.
-    const base64Data = dataUri.substring(dataUri.indexOf(',') + 1);
     
-    const uploadResult = await uploadString(storageRef, base64Data, 'base64', {
+    // Use the 'data_url' format, which is the most robust way to upload a data URI.
+    const uploadResult = await uploadString(storageRef, dataUri, 'data_url', {
       contentType: 'image/png',
     });
     const downloadURL = await getDownloadURL(uploadResult.ref);
