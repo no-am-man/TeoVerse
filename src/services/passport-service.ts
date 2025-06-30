@@ -9,12 +9,14 @@ export interface PhysicalAsset {
   type: string;
   name: string;
   value: string;
+  forSale: boolean;
 }
 
 export interface IpToken {
-  id: string;
+  id:string;
   name: string;
   value: string;
+  forSale: boolean;
 }
 
 export interface Passport {
@@ -40,8 +42,8 @@ export const getPassport = async (userId: string): Promise<Passport | null> => {
       federationURL: data.federationURL,
       email: data.email,
       createdAt: data.createdAt.toDate().getTime(),
-      physicalAssets: data.physicalAssets || [],
-      ipTokens: data.ipTokens || [],
+      physicalAssets: data.physicalAssets?.map((asset: any) => ({ ...asset, forSale: !!asset.forSale })) || [],
+      ipTokens: data.ipTokens?.map((token: any) => ({ ...token, forSale: !!token.forSale })) || [],
       teoBalance: data.teoBalance || 0,
     };
   } else {

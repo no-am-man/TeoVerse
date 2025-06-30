@@ -12,8 +12,9 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { Bot, BrainCircuit, FileText, Send, User } from 'lucide-react';
+import { Bot, BrainCircuit, Computer, FileText, Home, Send, User } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 
 interface AmbassadorClientPageProps {
   userId: string;
@@ -31,7 +32,7 @@ export function AmbassadorClientPage({ userId, passport, federationName }: Ambas
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'model',
-      content: `Welcome! I am the AI Ambassador for the ${federationName} federation. Feel free to ask me anything about our vision or our listed IP assets.`,
+      content: `Welcome! I am the AI Ambassador for the ${federationName} federation. Feel free to ask me anything about our vision or our listed assets.`,
     },
   ]);
   const [input, setInput] = useState('');
@@ -86,13 +87,20 @@ export function AmbassadorClientPage({ userId, passport, federationName }: Ambas
     }
   };
   
-  const getAssetIcon = (type: string): ReactNode => {
-    switch (type.toLowerCase()) {
-      case 'teoverse concept': return <BrainCircuit className="h-5 w-5 text-primary" />;
-      default: return <FileText className="h-5 w-5 text-primary" />;
+  const getAssetIcon = (assetType: 'physical' | 'ip', category?: string): ReactNode => {
+    const cat = category?.toLowerCase() || '';
+    if (assetType === 'ip') {
+        return <BrainCircuit className="h-5 w-5 text-primary" />;
     }
+    // Physical assets
+    if (cat.includes('estate')) return <Home className="h-5 w-5 text-primary" />;
+    if (cat.includes('electronics')) return <Computer className="h-5 w-5 text-primary" />;
+    return <FileText className="h-5 w-5 text-primary" />;
   };
 
+  const ipTokensForSale = passport.ipTokens.filter(token => token.forSale);
+  const physicalAssetsForSale = passport.physicalAssets.filter(asset => asset.forSale);
+  
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto p-4 md:p-8">
@@ -107,24 +115,33 @@ export function AmbassadorClientPage({ userId, passport, federationName }: Ambas
             </Card>
              <Card className="sticky top-48">
               <CardHeader>
-                <CardTitle>IP Assets for Sale</CardTitle>
-                 <CardDescription>The following intellectual property tokens are available for investment.</CardDescription>
+                <CardTitle>Assets for Sale</CardTitle>
+                 <CardDescription>The following assets are available for investment.</CardDescription>
               </CardHeader>
               <CardContent>
-                {passport.ipTokens.length > 0 ? (
+                {ipTokensForSale.length === 0 && physicalAssetsForSale.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No assets are currently listed for sale.</p>
+                ) : (
                   <ul className="space-y-4">
-                    {passport.ipTokens.map(token => (
+                    {ipTokensForSale.map(token => (
                        <li key={token.id} className="flex items-start gap-4">
-                        <div className="pt-1">{getAssetIcon(token.name)}</div>
+                        <div className="pt-1">{getAssetIcon('ip')}</div>
                         <div>
                            <p className="font-semibold">{token.name}</p>
                            <p className="text-sm text-muted-foreground">{token.value}</p>
                         </div>
                       </li>
                     ))}
+                    {physicalAssetsForSale.map(asset => (
+                       <li key={asset.id} className="flex items-start gap-4">
+                        <div className="pt-1">{getAssetIcon('physical', asset.type)}</div>
+                        <div>
+                           <p className="font-semibold flex items-center gap-2">{asset.name} <Badge variant="outline">{asset.type}</Badge></p>
+                           <p className="text-sm text-muted-foreground">{asset.value}</p>
+                        </div>
+                      </li>
+                    ))}
                   </ul>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">No IP assets are currently listed for sale.</p>
                 )}
               </CardContent>
             </Card>

@@ -18,9 +18,11 @@ import { federationConfig } from '@/config';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
-import { createPassport, getPassport, updatePassport, mintTeos, deletePassport, type Passport, type IpToken } from '@/services/passport-service';
+import { createPassport, getPassport, updatePassport, mintTeos, deletePassport, type Passport, type IpToken, type PhysicalAsset } from '@/services/passport-service';
 import { addActivityLog } from '@/services/activity-log-service';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 const assetFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -124,17 +126,19 @@ export default function PassportPage() {
         name: values.name,
         value: values.value,
         type: values.type || '',
+        forSale: false,
     };
 
     try {
       if (assetTypeToAdd === 'physical') {
-        const updatedAssets = [...(passport.physicalAssets || []), newAsset];
+        const updatedAssets = [...(passport.physicalAssets || []), newAsset as PhysicalAsset];
         await updatePassport(user.uid, { physicalAssets: updatedAssets });
         setPassport(prev => prev ? { ...prev, physicalAssets: updatedAssets } : null);
         await addActivityLog(user.uid, 'ADD_PHYSICAL_ASSET', `Added physical asset: ${values.name}`);
         toast({ title: "Physical Asset Added", description: `${values.name} has been added to your passport.` });
       } else if (assetTypeToAdd === 'ip') {
-        const updatedTokens = [...(passport.ipTokens || []), newAsset as IpToken];
+        const newIpToken: IpToken = { id: newAsset.id, name: newAsset.name, value: newAsset.value, forSale: false };
+        const updatedTokens = [...(passport.ipTokens || []), newIpToken];
         await updatePassport(user.uid, { ipTokens: updatedTokens });
         setPassport(prev => prev ? { ...prev, ipTokens: updatedTokens } : null);
         await addActivityLog(user.uid, 'MINT_IP_TOKEN', `Minted IP token: ${values.name}`);
@@ -145,6 +149,43 @@ export default function PassportPage() {
     } catch (error) {
       console.error("Failed to add asset:", error);
       toast({ title: "Error", description: "Failed to update passport.", variant: "destructive" });
+    }
+  };
+
+  const handleToggleForSale = async (itemId: string, itemType: 'physical' | 'ip') => {
+    if (!user || !passport) return;
+
+    const originalPassport = passport;
+    let updatedPassport: Passport | null = null;
+    let updatedDescription = "";
+
+    if (itemType === 'physical') {
+        const updatedAssets = originalPassport.physicalAssets.map(asset =>
+            asset.id === itemId ? { ...asset, forSale: !asset.forSale } : asset
+        );
+        updatedPassport = { ...originalPassport, physicalAssets: updatedAssets };
+        const changedAsset = updatedAssets.find(a => a.id === itemId);
+        updatedDescription = `${changedAsset?.name} is now ${changedAsset?.forSale ? 'listed for sale' : 'no longer for sale'}.`;
+    } else { // 'ip'
+        const updatedTokens = originalPassport.ipTokens.map(token =>
+            token.id === itemId ? { ...token, forSale: !token.forSale } : token
+        );
+        updatedPassport = { ...originalPassport, ipTokens: updatedTokens };
+        const changedToken = updatedTokens.find(t => t.id === itemId);
+        updatedDescription = `IP Token ${changedToken?.name} is now ${changedToken?.forSale ? 'listed for sale' : 'no longer for sale'}.`;
+    }
+
+    setPassport(updatedPassport); // Optimistic UI update
+
+    try {
+        await updatePassport(user.uid, {
+            physicalAssets: updatedPassport.physicalAssets,
+            ipTokens: updatedPassport.ipTokens
+        });
+        toast({ title: "Update Successful", description: updatedDescription });
+    } catch (error) {
+        setPassport(originalPassport); // Revert on error
+        toast({ title: "Error", description: "Failed to update asset status.", variant: "destructive" });
     }
   };
 
@@ -313,6 +354,7 @@ export default function PassportPage() {
                           <TableRow>
                               <TableHead>Asset</TableHead>
                               <TableHead>Value (USD)</TableHead>
+                              <TableHead>For Sale</TableHead>
                               <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                       </TableHeader>
@@ -323,6 +365,14 @@ export default function PassportPage() {
                                       {getAssetIcon(asset.type || asset.name)} {asset.name} <Badge variant="outline">{asset.type}</Badge>
                                   </TableCell>
                                   <TableCell>{asset.value}</TableCell>
+                                  <TableCell>
+                                    <Switch
+                                        id={`physical-${asset.id}`}
+                                        checked={asset.forSale}
+                                        onCheckedChange={() => handleToggleForSale(asset.id, 'physical')}
+                                        aria-label="Toggle for sale"
+                                    />
+                                  </TableCell>
                                   <TableCell className="text-right">
                                     <Button variant="ghost" size="icon" onClick={() => setAssetToDelete({ id: asset.id, name: asset.name, type: 'physical' })}>
                                         <Trash2 className="h-4 w-4" />
@@ -347,6 +397,7 @@ export default function PassportPage() {
                           <TableRow>
                               <TableHead>Token</TableHead>
                               <TableHead>Value (USD)</TableHead>
+                              <TableHead>For Sale</TableHead>
                               <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                       </TableHeader>
@@ -355,6 +406,14 @@ export default function PassportPage() {
                               <TableRow key={token.id}>
                                   <TableCell className="font-medium flex items-center gap-2">{getAssetIcon(token.name)}{token.name}</TableCell>
                                   <TableCell>{token.value}</TableCell>
+                                  <TableCell>
+                                    <Switch
+                                        id={`ip-${token.id}`}
+                                        checked={token.forSale}
+                                        onCheckedChange={() => handleToggleForSale(token.id, 'ip')}
+                                        aria-label="Toggle for sale"
+                                    />
+                                  </TableCell>
                                   <TableCell className="text-right">
                                     <Button variant="ghost" size="icon" onClick={() => setAssetToDelete({ id: token.id, name: token.name, type: 'ip' })}>
                                         <Trash2 className="h-4 w-4" />

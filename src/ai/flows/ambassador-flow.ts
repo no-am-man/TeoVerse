@@ -11,7 +11,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { federationConfig } from '@/config';
 import * as admin from 'firebase-admin';
-
+import type { IpToken, PhysicalAsset } from '@/services/passport-service';
 
 // Schema for the public data we will expose via the tool.
 const PublicFederationDataSchema = z.object({
@@ -22,27 +22,29 @@ const PublicFederationDataSchema = z.object({
     name: z.string().describe('The name or title of the intellectual property.'),
     value: z.string().describe('The value of the IP token in USD.'),
   })).describe('A list of intellectual property tokens available for sale.'),
+  physicalAssets: z.array(z.object({
+    id: z.string(),
+    name: z.string().describe('The name of the physical asset.'),
+    type: z.string().describe('The type or category of the physical asset.'),
+    value: z.string().describe('The value of the physical asset in USD.'),
+  })).describe('A list of physical assets available for sale.'),
 });
 
 // Tool for the AI to get information about the federation.
 const getFederationDataTool = ai.defineTool(
   {
     name: 'getFederationData',
-    description: "Retrieves public data for the specified federation, including its name, configuration, and a list of the user's IP assets available for sale. This tool MUST be called to answer any user question.",
+    description: "Retrieves public data for the specified federation, including its name, configuration, and a list of the user's IP and physical assets available for sale. This tool MUST be called to answer any user question.",
     inputSchema: z.object({
       userId: z.string().describe("The unique ID of the federation's owner (capital state)."),
     }),
     outputSchema: PublicFederationDataSchema,
   },
   async ({ userId }) => {
-    // Initialize Firebase Admin SDK if not already initialized.
-    // This is necessary for server-side flows to securely access Firestore.
     if (!admin.apps.length) {
       admin.initializeApp();
     }
     const adminDb = admin.firestore();
-
-    // Use the Firebase Admin SDK to fetch passport data directly.
     const passportRef = adminDb.collection('passports').doc(userId);
     const passportSnap = await passportRef.get();
 
@@ -51,10 +53,14 @@ const getFederationDataTool = ai.defineTool(
     }
     const passportData = passportSnap.data();
 
+    const ipTokensForSale = (passportData?.ipTokens || []).filter((token: IpToken) => token.forSale);
+    const physicalAssetsForSale = (passportData?.physicalAssets || []).filter((asset: PhysicalAsset) => asset.forSale);
+
     return {
       federationName: federationConfig.federationName,
       tokenSymbol: federationConfig.tokenSymbol,
-      ipTokens: passportData?.ipTokens || [],
+      ipTokens: ipTokensForSale,
+      physicalAssets: physicalAssetsForSale,
     };
   }
 );
@@ -88,19 +94,17 @@ const ambassadorFlow = ai.defineFlow(
       model: 'googleai/gemini-2.0-flash',
       tools: [getFederationDataTool],
       toolConfig: {
-        // Force the model to call our tool with the provided userId.
-        // This ensures it always has the context it needs.
         autoToolCall: {
           force: [{ name: 'getFederationData', args: { userId: input.userId } }],
         },
       },
-      system: `You are the AI Ambassador for a TeoVerse federation. Your role is to answer questions from potential investors about the federation and its intellectual property (IP) assets that are for sale.
+      system: `You are the AI Ambassador for a TeoVerse federation. Your role is to answer questions from potential investors about the federation and its assets (both intellectual property and physical) that are for sale.
 
-You are helpful, professional, and slightly futuristic. Your primary goal is to generate interest in the IP assets.
+You are helpful, professional, and slightly futuristic. Your primary goal is to generate interest in the assets.
 
 Use the getFederationData tool to get the necessary information about the federation and its assets. Do not answer questions about any other topic. Do not reveal the user's ID or any private information.
 
-When asked about IP assets, describe them based on the data available and mention their value in USD.
+When asked about IP assets or physical assets, describe them based on the data available and mention their value in USD.
 When asked about the federation, you can talk about its name and currency symbol.`,
       history: input.history,
     });
