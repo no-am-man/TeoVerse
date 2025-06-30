@@ -144,7 +144,7 @@ export default function DashboardPage() {
     });
 
     // Cleanup listener on component unmount
-    return () => off(flagUrlDbRef, 'value', unsubscribe);
+    return () => off(flagUrlRef, 'value', unsubscribe);
   }, []);
 
   // When the passport digest is available, sync the flag.
@@ -160,15 +160,26 @@ export default function DashboardPage() {
     handleFlagGeneration(passportDigest, true);
   }, [passportDigest, handleFlagGeneration]);
 
-  const MOCK_RATE = 10000; // From DEX page: 1 BTC = 10000 TEO
+  const MOCK_BTC_USD_RATE = 50000; // Mock rate: 1 BTC = $50,000 USD
+
+  const parseCurrency = (value: string): number => {
+    // Remove non-numeric characters except for decimal point
+    const numericString = value.replace(/[^0-9.]/g, '');
+    return parseFloat(numericString) || 0;
+  };
+
+  const totalAssetValueUsd = (passport?.physicalAssets?.reduce((sum, asset) => sum + parseCurrency(asset.value), 0) || 0) +
+                             (passport?.ipTokens?.reduce((sum, token) => sum + parseCurrency(token.value), 0) || 0);
+
+  const passportValueInBtc = totalAssetValueUsd / MOCK_BTC_USD_RATE;
+
   const teoBalance = passport?.teoBalance || 0;
-  const passportValueInBtc = teoBalance / MOCK_RATE;
   const totalAssets = (passport?.physicalAssets?.length || 0) + (passport?.ipTokens?.length || 0);
   const MOCK_BTC_BALANCE = 100;
   
   const otherMemberCount = memberCount > 0 ? memberCount - 1 : 0;
   const stats = [
-    { title: 'Passport Value', value: `${passportValueInBtc.toFixed(4)} BTC`, icon: CreditCard, description: `Based on your ${federationConfig.tokenSymbol} balance` },
+    { title: 'Passport Value', value: `${passportValueInBtc.toFixed(4)} BTC`, icon: CreditCard, description: `Based on your ${totalAssets} tokenized assets` },
     { title: 'BTC Balance', value: `${MOCK_BTC_BALANCE.toLocaleString()} BTC`, icon: Landmark, description: 'From your connected UniSat wallet (mock)' },
     { title: `${federationConfig.tokenSymbol} Balance`, value: `${teoBalance.toLocaleString()} ${federationConfig.tokenSymbol}`, icon: PiggyBank, description: 'Your federation currency' },
     { title: 'Federation States', value: memberCount.toLocaleString(), icon: Flag, description: `1 Capital (You) + ${otherMemberCount.toLocaleString()} members` },
