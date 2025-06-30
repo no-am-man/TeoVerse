@@ -1,5 +1,6 @@
 import { AuthButton } from '@/components/auth-button';
 import { Logo } from '@/components/logo';
+import { Github } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -24,7 +25,15 @@ export default function Home() {
         </div>
       </main>
       <footer className="p-4 text-center text-sm text-muted-foreground">
-        An open-source project for personal, private federations.
+        <a
+          href="https://github.com/no-am-man/TeoVerse"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 hover:text-foreground transition-colors"
+        >
+          <Github className="h-4 w-4" />
+          <span>View the open-source project on GitHub</span>
+        </a>
       </footer>
     </div>
   );
