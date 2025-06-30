@@ -12,7 +12,7 @@ import { z } from 'genkit';
 import { createHash } from 'crypto';
 import { getCachedImage, cacheImage } from '@/services/geny-service';
 
-export const GenyInputSchema = z.object({
+const GenyInputSchema = z.object({
   prompt: z.string().describe('The text prompt to generate an image from.'),
   imageSize: z
     .object({
@@ -23,7 +23,7 @@ export const GenyInputSchema = z.object({
 });
 export type GenyInput = z.infer<typeof GenyInputSchema>;
 
-export const GenyOutputSchema = z.object({
+const GenyOutputSchema = z.object({
   url: z.string().describe('The URL of the generated or cached image.'),
 });
 export type GenyOutput = z.infer<typeof GenyOutputSchema>;
