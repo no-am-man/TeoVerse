@@ -1,14 +1,6 @@
 'use server';
-import { rtdb } from '@/lib/firebase';
-import { ref, set } from 'firebase/database';
 
-const FEDERATION_FLAG_PATH = 'federation/flagUrl';
-
-/**
- * Sets the federation flag URL in the Realtime Database.
- * @param url The URL of the federation flag.
- */
-export async function setFederationFlagUrl(url: string): Promise<void> {
-  const flagRef = ref(rtdb, FEDERATION_FLAG_PATH);
-  await set(flagRef, url);
-}
+// This file is intentionally left blank.
+// The logic for updating the federation flag URL has been moved to the
+// server-side AI flow (`generate-federation-flag-flow.ts`) which now uses
+// the Firebase Admin SDK for a more robust and secure implementation.

@@ -12,8 +12,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { createHash } from 'crypto';
 import { getCachedImage, cacheImage } from '@/services/geny-service';
-import { storage } from '@/lib/firebase';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { adminStorage } from '@/lib/firebase-admin';
 
 const GenyInputSchema = z.object({
   prompt: z.string().describe('The text prompt to generate an image from.'),
@@ -65,8 +64,6 @@ const genyFlow = ai.defineFlow(
     console.log('No cache hit. Generating new image for hash:', hash);
 
     // 3. If not cached, generate a new image.
-    // Note: The 'gemini-2.0-flash-preview-image-generation' model does not currently support custom image sizes.
-    // The `imageSize` parameter is included in the hash for future compatibility but is not used in generation.
     const { media } = await ai.generate({
       model: 'googleai/gemini-2.0-flash-preview-image-generation',
       prompt: input.prompt,
@@ -82,20 +79,27 @@ const genyFlow = ai.defineFlow(
     }
     const dataUri = media.url;
     
-    // 4. Upload to Firebase Storage to get a public URL.
-    const storageRef = ref(storage, `generated_images/${hash}.png`);
-    
-    // Manually extract the base64 data from the data URI for a more robust upload.
+    // 4. Upload to Firebase Storage using the Admin SDK
+    const bucket = adminStorage.bucket();
+    const filePath = `generated_images/${hash}.png`;
+    const file = bucket.file(filePath);
+
     const commaIndex = dataUri.indexOf(',');
     if (commaIndex === -1) {
       throw new Error('Invalid data URI from image generation model.');
     }
     const base64Data = dataUri.substring(commaIndex + 1);
-
-    const uploadResult = await uploadString(storageRef, base64Data, 'base64', {
-      contentType: 'image/png',
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    await file.save(buffer, {
+      metadata: {
+        contentType: 'image/png',
+      },
     });
-    const downloadURL = await getDownloadURL(uploadResult.ref);
+
+    // Make the file public to get a predictable URL
+    await file.makePublic();
+    const downloadURL = file.publicUrl();
 
     // 5. Cache the public Storage URL in Firestore.
     await cacheImage(hash, downloadURL);

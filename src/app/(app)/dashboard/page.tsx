@@ -12,9 +12,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { generateFederationFlag } from '@/ai/flows/generate-federation-flag-flow';
-import { setFederationFlagUrl } from '@/services/federation-service';
-import { storage } from '@/lib/firebase';
-import { ref as firebaseStorageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { rtdb } from '@/lib/firebase';
@@ -32,48 +29,30 @@ export default function DashboardPage() {
   const [isGeneratingFlag, setIsGeneratingFlag] = useState(false);
   const isInitialMount = useRef(true);
 
-  // This is the core logic for generating and uploading the flag.
-  // It's now called from the client-side to leverage the authenticated user's context.
+  // This function now calls the server-side AI flow which handles everything.
   const handleFlagGeneration = useCallback(async (prompt: string, salt?: string) => {
     if (!user) return;
     setIsGeneratingFlag(true);
 
     try {
-      // 1. Call the AI flow to get the image data URI
+      // 1. Call the AI flow. The flow now handles the entire process:
+      //    generation, upload to Storage, and update to Realtime DB.
+      //    It returns the final public URL for an immediate UI update.
       const { dataUri } = await generateFederationFlag({ prompt, salt });
 
       if (!dataUri) {
-        throw new Error("AI flow did not return image data.");
+        throw new Error("AI flow did not return a URL.");
       }
-
-      // 2. Create a unique filename for the image in Firebase Storage
-      const uniqueName = `${user.uid}-${Date.now()}`;
-      const imageRef = firebaseStorageRef(storage, `federation_flags/${uniqueName}.png`);
-
-      // 3. Upload the image data to Firebase Storage
-      // Extract base64 data from the data URI
-      const commaIndex = dataUri.indexOf(',');
-      if (commaIndex === -1) {
-        throw new Error('Invalid data URI from image generation model.');
-      }
-      const base64Data = dataUri.substring(commaIndex + 1);
-
-      const uploadResult = await uploadString(imageRef, base64Data, 'base64', {
-        contentType: 'image/png',
-      });
-
-      // 4. Get the public download URL for the uploaded image
-      const downloadURL = await getDownloadURL(uploadResult.ref);
-
-      // 5. Update local state immediately for a fast UI response
-      setFederationFlagUrl(downloadURL);
-
-      // 6. Update the Realtime Database to broadcast the new flag to all members
-      await setFederationFlagUrl(downloadURL);
+      
+      // 2. Update local state immediately for a fast UI response.
+      // The Realtime DB listener will handle updates for other users,
+      // and this will prevent a re-render for the current user.
+      setFederationFlagUrl(dataUri);
 
     } catch (error) {
-      console.error("Failed during flag generation and upload:", error);
-      toast({ title: "Flag Error", description: "Could not create the Federation Flag.", variant: "destructive" });
+      console.error("Failed during flag generation:", error);
+      const err = error instanceof Error ? error.message : "Could not create the Federation Flag.";
+      toast({ title: "Flag Error", description: err, variant: "destructive" });
     } finally {
       setIsGeneratingFlag(false);
     }
@@ -128,7 +107,9 @@ export default function DashboardPage() {
     
     const unsubscribe = onValue(flagUrlRef, (snapshot) => {
       const url = snapshot.val();
-      setFederationFlagUrl(url); // This will update the UI in real-time for all users
+      if (url) {
+        setFederationFlagUrl(url); // This will update the UI in real-time for all users
+      }
     });
 
     // Cleanup listener on component unmount
