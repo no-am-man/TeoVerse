@@ -16,7 +16,7 @@ export interface ActivityLog {
   userId: string;
   type: ActivityType;
   description: string;
-  createdAt: any; // Firestore Timestamp
+  createdAt: number; // Firestore Timestamp converted to milliseconds
 }
 
 const ACTIVITY_LOGS_COLLECTION = 'activity_logs';
@@ -68,13 +68,13 @@ export const getRecentActivity = async (userId: string, count: number = 5): Prom
         userId: data.userId,
         type: data.type,
         description: data.description,
-        createdAt: data.createdAt,
+        createdAt: data.createdAt.toDate().getTime(),
       });
     }
   });
 
   // Sort activities by date descending in the code.
-  activities.sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
+  activities.sort((a, b) => b.createdAt - a.createdAt);
 
   // Return the specified number of recent activities.
   return activities.slice(0, count);

@@ -21,7 +21,7 @@ export interface Passport {
   id: string;
   federationURL: string;
   email: string;
-  createdAt: any;
+  createdAt: number;
   physicalAssets: PhysicalAsset[];
   ipTokens: IpToken[];
   teoBalance: number;
@@ -39,7 +39,7 @@ export const getPassport = async (userId: string): Promise<Passport | null> => {
       id: passportSnap.id,
       federationURL: data.federationURL,
       email: data.email,
-      createdAt: data.createdAt,
+      createdAt: data.createdAt.toDate().getTime(),
       physicalAssets: data.physicalAssets || [],
       ipTokens: data.ipTokens || [],
       teoBalance: data.teoBalance || 0,
